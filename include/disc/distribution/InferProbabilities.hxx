@@ -4,7 +4,6 @@
 #include <disc/distribution/MultiModel.hxx>
 #include <disc/distribution/Transactions.hxx>
 #include <disc/storage/Itemset.hxx>
-#include <disc/utilities/SizeOfUnion.hxx>
 #include <disc/utilities/Support.hxx>
 
 #include <nonstd/optional.hpp>
@@ -15,36 +14,6 @@ namespace sd
 {
 namespace viva
 {
-
-template <typename pattern_type, typename float_type, typename query_type>
-auto probability_transaction_2(MultiModel<pattern_type, float_type> const& c,
-                             const query_type&                             t)
-{
-
-    thread_local disc::itemset<pattern_type> xx;
-    xx.clear();
-    xx.insert(t);
-
-    float_type acc = c.itemsets.theta0;
-    for (size_t i = 0, l = c.itemsets.set.size(); i < l; ++i)
-    {
-        setminus(xx, c.itemsets.set[i].point);
-        if (is_subset(c.itemsets.set[i].point, t))
-        {
-            acc *= c.itemsets.set[i].theta;
-        }
-    }
-    for (size_t i = 0, l = c.singletons.set.size(); i < l; ++i)
-    {
-        if (is_subset(c.singletons.set[i].element, xx))
-        {
-            acc *= c.singletons.set[i].theta;
-        }
-    }
-    
-    return acc;
-}
-
 
 template <typename pattern_type, typename float_type, typename query_type>
 auto probability_transaction(ItemsetModel<pattern_type, float_type> const& c,

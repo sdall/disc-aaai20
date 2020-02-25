@@ -12,18 +12,19 @@ namespace sd
 namespace disc
 {
 
-template <typename S, typename T>
+template <typename S, typename T, typename... U>
 struct SlimCandidate
 {
     itemset<S>                pattern;
     long_storage_container<S> row_ids;
     size_t                    support = 0;
     T                         score   = 0;
-    T                    opt_usage = -1;
+
+    std::tuple<U...> optional_payload;
 };
 
-template <typename S, typename T>
-SlimCandidate<S, T> join(SlimCandidate<S, T> next, const SlimCandidate<S, T>& b)
+template <typename S, typename T, typename... U>
+SlimCandidate<S, T, U...> join(SlimCandidate<S, T, U...> next, const SlimCandidate<S, T, U...>& b)
 {
     intersection(b.row_ids, next.row_ids);
     next.pattern.insert(b.pattern);
@@ -31,10 +32,10 @@ SlimCandidate<S, T> join(SlimCandidate<S, T> next, const SlimCandidate<S, T>& b)
     return next;
 }
 
-template <typename S, typename T>
+template <typename S, typename T, typename... U>
 struct SlimGenerator
 {
-    using state_type = SlimCandidate<S, T>;
+    using state_type = SlimCandidate<S, T, U...>;
 
     struct ordering
     {
@@ -278,7 +279,9 @@ struct SlimGenerator
 
             has_seen.insert(point(x));
 
-            SlimCandidate<S, T> next; //  = singletons[front(point(x))];
+            // SlimCandidate<S, T, U...> next; //  = singletons[front(point(x))];
+            state_type next;
+
             // reserve(next.row_ids, data.size());
             next.row_ids.reserve(data.size());
 

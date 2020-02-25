@@ -2,24 +2,20 @@
 
 #include <disc/disc/Composition.hxx>
 #include <disc/disc/PatternsetResult.hxx>
+#include <disc/disc/SlimCandidateGeneration.hxx>
 #include <disc/disc/Encoding.hxx>
 #include <disc/disc/HeuristicScore.hxx>
 #include <disc/disc/InsertMissingSingletons.hxx>
-#include <disc/disc/Settings.hxx>
 #include <disc/distribution/Distribution.hxx>
-#include <disc/storage/Dataset.hxx>
 #include <disc/utilities/EmptyCallback.hxx>
 #include <disc/utilities/PvalueNHC.hxx>
 #include <disc/utilities/Support.hxx>
-#include <disc/utilities/UniversalIntEncoding.hxx>
-#include <disc/utilities/WeakNumberComposition.hxx>
 
 #include <nonstd/optional.hpp>
 
 #include <algorithm>
 #include <chrono>
 
-#include <disc/disc/SlimCandidateGeneration.hxx>
 
 namespace sd
 {
@@ -57,23 +53,6 @@ bool is_candidate_significant(PatternsetResult<Trait>& c,
 
     // auto g = single_component_expected_gain<float_type>(c.data.size(), x, p);
     auto r = cfg.use_bic ? add_bic_cost : additional_cost_mdl(c, x.pattern, x.support);
-    // r /= c.data.size();
-
-    std::cout << "x = [ ";
-    iterate_over(x.pattern, [](size_t i) {
-        std::cout << i << ' ';
-    });
-    std::cout << "]\n";
-
-    printf("%e = %e * %e = %e * kl(%e, %e) >> %e\n",
-           (double)g,
-           (double)x.support,
-           (double)dkl,
-           (double)x.support,
-           (double)fr,
-           (double)mu,
-           (double)r);
-    // std::cout << g << " < " << r << std::endl;
 
     return nhc_pvalue<float_type>(r, g) > float_type(1) - cfg.alpha;
 }
@@ -152,8 +131,8 @@ PatternsetResult<Trait> discover_patternset(PatternsetResult<Trait> s,
             gen.prune(
                 [&](const auto& t) { return t.score <= 0 || !pr.is_item_allowed(t.pattern); });
 
-            std::cout << gen.count_current_candidates() << " #candidates after pruning\n";
-            std::cout.flush();
+            // std::cout << gen.count_current_candidates() << " #candidates after pruning\n";
+            // std::cout.flush();
 
             callback(std::as_const(s));
         }

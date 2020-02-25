@@ -11,7 +11,6 @@
 #include <disc/utilities/EmptyCallback.hxx>
 #include <disc/utilities/PvalueNHC.hxx>
 #include <disc/utilities/Support.hxx> // frequency, support
-#include <disc/utilities/WeakNumberComposition.hxx>
 
 #include <chrono>
 #include <cmath>
