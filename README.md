@@ -1,7 +1,6 @@
 # DISC - Explainable Data Decompositions (AAAI-20)
 
-This project contains our implementation of `DISC`, a method for discovering and explaining components in binary datasets. For more details see [S. Dalleiger and J. Vreeken, Explainable Data Decompositions, AAAI (2020)](http://eda.mmci.uni-saarland.de/prj/disc/)
-
+This project contains our implementation of `DISC`, a method for discovering and explaining components in binary datasets. For more details see [S. Dalleiger and J. Vreeken, Explainable Data Decompositions, AAAI (2020)](http://eda.mmci.uni-saarland.de/disc/)
 
 ## Abstract
 
