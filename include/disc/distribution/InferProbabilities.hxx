@@ -97,8 +97,7 @@ size_t dimension_of_factor(const Model_Type& m)
 template <typename Model_Type, typename T>
 size_t dimension_of_factor(const Model_Type& m, const T&)
 {
-    return m.singletons.size();
-    // return m.dimension();
+    return dimension_of_factor(m);
 }
 
 template <typename Pattern_Type, typename Float_type>

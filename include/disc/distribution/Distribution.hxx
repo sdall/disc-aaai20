@@ -16,7 +16,7 @@ struct Distribution
 {
     void   clear() { get().clear(); }
     size_t dimension() const { return get().dimension(); }
-    size_t num_itemsets() const { return get().size(); }
+    size_t num_itemsets() const { return get().num_itemsets(); }
     size_t size() const { return get().size(); }
 
     template <typename S, typename T>
@@ -75,7 +75,7 @@ struct MEDistributionImpl : Distribution<MEDistributionImpl<Model>>
 
     void   clear() { model.clear(); }
     size_t dimension() const { return model.dimension(); }
-    size_t num_itemsets() const { return model.size(); }
+    size_t num_itemsets() const { return model.num_itemsets(); }
     size_t size() const { return model.size(); }
 
     template <typename T>

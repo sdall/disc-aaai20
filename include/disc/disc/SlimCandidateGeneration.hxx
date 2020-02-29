@@ -12,19 +12,17 @@ namespace sd
 namespace disc
 {
 
-template <typename S, typename T, typename... U>
+template <typename S, typename T>
 struct SlimCandidate
 {
     itemset<S>                pattern;
     long_storage_container<S> row_ids;
     size_t                    support = 0;
     T                         score   = 0;
-
-    std::tuple<U...> optional_payload;
 };
 
-template <typename S, typename T, typename... U>
-SlimCandidate<S, T, U...> join(SlimCandidate<S, T, U...> next, const SlimCandidate<S, T, U...>& b)
+template <typename S, typename T>
+SlimCandidate<S, T> join(SlimCandidate<S, T> next, const SlimCandidate<S, T>& b)
 {
     intersection(b.row_ids, next.row_ids);
     next.pattern.insert(b.pattern);
@@ -32,10 +30,10 @@ SlimCandidate<S, T, U...> join(SlimCandidate<S, T, U...> next, const SlimCandida
     return next;
 }
 
-template <typename S, typename T, typename... U>
-struct SlimGenerator
+template <typename State>
+struct SlimGeneratorImpl
 {
-    using state_type = SlimCandidate<S, T, U...>;
+    using state_type = State;
 
     struct ordering
     {
@@ -51,7 +49,7 @@ struct SlimGenerator
     };
 
     template <typename Data, typename ScoreFn = ConstantScoreFunction>
-    SlimGenerator(const Data&              data,
+    SlimGeneratorImpl(const Data&              data,
                   size_t                   min_support,
                   nonstd::optional<size_t> max_width = {},
                   ScoreFn&&                score     = {})
@@ -61,7 +59,7 @@ struct SlimGenerator
     }
 
     template <typename Data, typename Patternset, typename ScoreFn = ConstantScoreFunction>
-    SlimGenerator(const Data&              data,
+    SlimGeneratorImpl(const Data&              data,
                   const Patternset&        summary,
                   size_t                   min_support,
                   nonstd::optional<size_t> max_width = {},
@@ -70,11 +68,6 @@ struct SlimGenerator
     {
         init(data, summary, score);
     }
-
-    // SlimGenerator(SlimGenerator&&)      = default;
-    // SlimGenerator(const SlimGenerator&) = default;
-    // SlimGenerator& operator=(SlimGenerator&&) = default;
-    // SlimGenerator& operator=(const SlimGenerator&) = default;
 
     nonstd::optional<state_type> next()
     {
@@ -100,19 +93,15 @@ struct SlimGenerator
             // clang-format off
             if (is_subset(singletons[i].pattern, next.pattern)) continue;
 
-            auto joined = join(next, singletons[i]);
-
+            auto joined       = join(next, singletons[i]);
+            auto count_joined = count(joined.pattern);
             // if (is_subset(joined.pattern, next.pattern))         continue;
-            if (count(joined.pattern) <= count_next)             continue;
-
-            if (joined.support < min_support)                    continue;
-            if (max_width && count(joined.pattern) > *max_width) continue;
-            
+            if (count_joined <= count_next)             continue;
+            if (joined.support < min_support)           continue;
+            if (max_width && count_joined > *max_width) continue;
             joined.score = score(joined);            
-            
-            if (joined.score <= T(0))                            continue;
-                // clang-format on
-
+            if (joined.score <= 0)                      continue;
+            // clang-format on
 
 #pragma omp critical
             {
@@ -270,7 +259,7 @@ struct SlimGenerator
         candidates.clear();
         candidates.reserve(data.dim * data.dim);
 
-        disc::itemset<S> has_seen;
+        disc::itemset<typename Data::pattern_type> has_seen;
 
         for (const auto& x : patternset)
         {
@@ -279,7 +268,6 @@ struct SlimGenerator
 
             has_seen.insert(point(x));
 
-            // SlimCandidate<S, T, U...> next; //  = singletons[front(point(x))];
             state_type next;
 
             // reserve(next.row_ids, data.size());
@@ -338,8 +326,8 @@ private:
     size_t                   stat_num_generated_candidates = 0;
 };
 
-// template <typename S, typename T>
-// struct SlimGenerator
+template <typename S, typename T>
+using SlimGenerator = SlimGeneratorImpl<SlimCandidate<S, T>>;
 
 } // namespace disc
 } // namespace sd

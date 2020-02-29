@@ -33,14 +33,15 @@ struct FactorizedModel
     explicit FactorizedModel(size_t dim) : dim(dim) { init(dim); }
 
     size_t dim              = 0;
-    size_t total_size       = 0;
+    size_t count_sets       = 0;
     size_t max_num_itemsets = 5;
     size_t max_range_size   = 8;
 
     std::vector<factor_type> factors;
 
-    size_t size() const { return total_size; }
+    size_t num_itemsets() const { return count_sets; }
     size_t dimension() const { return dim; }
+    size_t size() const { return num_itemsets() + dimension(); }
 
     void init(size_t dim)
     {
@@ -146,6 +147,7 @@ struct FactorizedModel
         erase_empty_factors();
 
         factors.emplace_back(std::move(next));
+        ++count_sets;
     }
 
     template <typename T>

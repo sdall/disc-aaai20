@@ -22,16 +22,6 @@ namespace sd
 namespace disc
 {
 
-template <typename T, typename Candidate, typename Distribution>
-auto single_component_expected_gain(size_t data_size, const Candidate& x, const Distribution& p)
-    -> T
-{
-    const auto fr = T(x.support) / data_size;
-    const auto e  = p.expected_frequency(x.pattern);
-    if(std::abs(fr - e) < 0.04) return T(0);
-    return fr * kl1(fr, e);
-}
-
 template <typename Trait, typename Candidate, typename Distribution, typename Float>
 bool is_candidate_significant(PatternsetResult<Trait>& c,
                               const Candidate&         x,
@@ -39,22 +29,8 @@ bool is_candidate_significant(PatternsetResult<Trait>& c,
                               const MiningSettings&    cfg,
                               const Float              add_bic_cost)
 {
-    // return true;
     using float_type = typename Trait::float_type;
-    // return nhc_pvalue<float_type>(0, x.score) > float_type(1) - cfg.alpha;
-    // const auto fr = float_type(x.support) / c.data.size();
-    // return std::abs(fr - p.expected_frequency(x.pattern)) > 0.01;
-
-    const auto fr  = float_type(x.support) / c.data.size();
-    const auto mu  = p.expected_frequency(x.pattern);
-    const auto dkl = kl1(fr, mu);
-    // const auto g   = fr * dkl * c.data.size();
-    const auto g   = dkl * x.support;
-
-    // auto g = single_component_expected_gain<float_type>(c.data.size(), x, p);
-    auto r = cfg.use_bic ? add_bic_cost : additional_cost_mdl(c, x.pattern, x.support);
-
-    return nhc_pvalue<float_type>(r, g) > float_type(1) - cfg.alpha;
+    return nhc_pvalue<float_type>(0, x.score) > float_type(1) - cfg.alpha;
 }
 
 template <typename Trait>
@@ -126,13 +102,8 @@ PatternsetResult<Trait> discover_patternset(PatternsetResult<Trait> s,
 
             gen.add_next(*c, score_fn);
 
-            // std::cout << gen.count_current_candidates() << " #candidates before pruning\n";
-
             gen.prune(
                 [&](const auto& t) { return t.score <= 0 || !pr.is_item_allowed(t.pattern); });
-
-            // std::cout << gen.count_current_candidates() << " #candidates after pruning\n";
-            // std::cout.flush();
 
             callback(std::as_const(s));
         }
@@ -163,16 +134,16 @@ PatternsetResult<Trait> discover_patternset(PatternsetResult<Trait> s,
                                             const MiningSettings&   cfg,
                                             CALLBACK&&              callback = {})
 {
-    auto h = [use_bic = cfg.use_bic](
+    auto h = [use_bic = cfg.use_bic, data_size = s.data.size()](
                  const PatternsetResult<Trait>& s, const auto& x, const auto bic_const) {
         using float_t = typename Trait::float_type;
-
-        auto gain = single_component_expected_gain<float_t>(s.data.size(), x, s.model.value());
-        auto cost = use_bic ? bic_const : additional_cost_mdl(s, x.pattern, x.support);
-        return gain * s.data.size() - cost;
-        // const auto d = s.model->expected_frequency(x.pattern) - float_t(x.support) / s.data.size();
-        // return std::sqrt(d * d) - 0.05;
+        const auto fr   = static_cast<float_t>(x.support) / data_size;
+        const auto mu   = s.model->expected_frequency(x.pattern);
+        const auto gain = x.support * kl1(fr, mu);
+        const auto cost = use_bic ? bic_const : additional_cost_mdl(s, x.pattern, x.support);
+        return gain - cost;
     };
+
     return discover_patternset(std::move(s), h, cfg, std::forward<CALLBACK>(callback));
 }
 
