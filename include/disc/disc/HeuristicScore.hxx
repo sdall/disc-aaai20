@@ -38,7 +38,7 @@ auto mean_score_many_components(const Composition<Trait>& c,
         auto        estimate      = c.models[i].expected_frequency(x.pattern);
         auto        support       = size_of_intersection(x.row_ids, masks[i]);
         auto        fr            = static_cast<float_type>(support) / d.size();
-        auto        expected_gain = fr * d.size() * kl1(fr, estimate);
+        auto        expected_gain = support * std::log2(fr / estimate);
 
         if (!use_bic)
         {
@@ -64,10 +64,9 @@ auto mean_score(const Composition<Trait>&     c,
                               ? additional_cost_bic(c)
                               : additional_cost_mdl(c, x.pattern, x.support, 0, c.data.size());
 
-        auto n = c.data.size();
         auto p = c.models[0].expected_frequency(x.pattern);
         auto q = float_type(x.support) / c.data.size();
-        return q * n * kl1(q, p) - cost;
+        return x.support * std::log2(q / p) - cost;
     }
     else
     {

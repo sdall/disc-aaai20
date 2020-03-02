@@ -139,7 +139,7 @@ PatternsetResult<Trait> discover_patternset(PatternsetResult<Trait> s,
         using float_t = typename Trait::float_type;
         const auto fr   = static_cast<float_t>(x.support) / data_size;
         const auto mu   = s.model->expected_frequency(x.pattern);
-        const auto gain = x.support * kl1(fr, mu);
+        const float_t gain = x.support == 0 ? 0 : x.support * std::log2(fr / mu);
         const auto cost = use_bic ? bic_const : additional_cost_mdl(s, x.pattern, x.support);
         return gain - cost;
     };

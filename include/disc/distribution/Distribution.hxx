@@ -59,18 +59,13 @@ struct MEDistributionImpl : Distribution<MEDistributionImpl<Model>>
     using underlying_model_type = Model;
     using float_type            = typename underlying_model_type::float_type;
     using pattern_type          = typename underlying_model_type::pattern_type;
-
+    
     MEDistributionImpl(size_t dimension, size_t length)
         : model(dimension)
         , epsilon(std::min(float_type(1e-16), float_type(1) / (length * dimension)))
     {
         assert(dimension > 0);
         assert(length > 0);
-    }
-
-    MEDistributionImpl(size_t dimension, size_t length, const disc::MiningSettings&)
-        : MEDistributionImpl(dimension, length)
-    {
     }
 
     void   clear() { model.clear(); }
@@ -151,14 +146,6 @@ struct MEDistribution : MEDistributionImpl<viva::FactorizedModel<U, V>>
     {
     }
 };
-
-template <typename U, typename V>
-struct MEDistributionSingleFactor : MEDistributionImpl<viva::MultiModel<U, V>>
-{
-    using base = MEDistributionImpl<viva::MultiModel<U, V>>;
-    using base::base;
-};
-
 
 } // namespace disc
 } // namespace sd

@@ -42,18 +42,15 @@ bool is_candidate_assignment_good(const Composition<Trait>& c,
 
     const auto subset        = c.data.subset(component_index);
     const auto subset_size   = subset.size();
-    const auto expected_gain = fr * subset_size * kl1(fr, estimate);
-    const auto add_cost =
-        bic ? float_type_1(0)
-            : float_type_1(additional_cost_mdl_assignment(c,
-                                                          candidate_pattern,
-                                                          static_cast<size_t>(fr * subset_size),
-                                                          component_index,
-                                                          subset_size));
-    const bool do_assignment =
-        bic ? expected_gain > add_cost
-            : (nhc_pvalue(add_cost, expected_gain) > (float_type_2(1) - alpha));
-    return do_assignment;
+    const auto support       = static_cast<size_t>(fr * subset_size);
+    const auto expected_gain = support * std::log2(fr / estimate);
+    
+    const float_type_1 add_cost = bic ? 0 : additional_cost_mdl_assignment(c,
+                                                                           candidate_pattern,
+                                                                           support,
+                                                                           component_index,
+                                                                           subset_size);
+    return expected_gain > add_cost;
 }
 
 template <typename Trait, typename Pattern, typename float_type_1, typename float_type_2>
