@@ -3,17 +3,14 @@ import sys
 import pybind11
 from setuptools import setup, Extension
 
-# if sys.platform.startswith('win'):
-#     cpp_args = []
-# else:
-cpp_args = ['-std=c++17', '-O3', '-march=native', '-fopenmp']
+cpp_args = ['-std=c++17', '-O3', '-march=native']
 cpp_libs = ['pthread', 'gomp']
 
 ext_modules = [
     Extension(
         'disc',
         ['./src/pybind11/PyDisc.cpp'],
-        include_dirs=['./include', './thirdparty', pybind11.get_include(True)],
+        include_dirs=['./include', pybind11.get_include(True)],
         language='c++',
         libraries=cpp_libs,
         extra_compile_args=cpp_args,
@@ -22,7 +19,7 @@ ext_modules = [
 
 setup(
     name='disc',
-    version='0.1.0',
+    version='0.2.0',
     author='Sebastian Dalleiger',
     author_email='sdalleig@mpi-inf.mpg.de',
     license="MIT",

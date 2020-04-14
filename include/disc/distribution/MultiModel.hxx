@@ -8,30 +8,12 @@
 #include <numeric>
 #include <vector>
 
-#include <nonstd/optional.hpp>
+#include <optional>
 
 namespace sd
 {
 namespace viva
 {
-
-// template <typename U, typename V>
-// struct ItemsetObserver
-// {
-//     using float_type = V;
-
-//     bool        known() const { return is_known; }
-//     auto        frequency() const { return fr; }
-//     const auto& point() const { return *buf; }
-//     auto&       coeff() { return *theta; }
-//     auto&       coeff0() { return *theta0; }
-
-//     bool                    is_known;
-//     float_type              fr;
-//     const disc::itemset<U>* buf;
-//     float_type*             theta0;
-//     float_type*             theta;
-// };
 
 template <typename U, typename V>
 struct SingletonModel
@@ -55,15 +37,6 @@ struct SingletonModel
     size_t           dim    = 0;
     disc::itemset<U> buffer;
 
-    // ItemsetObserver<U, V> get(size_t i)
-    // {
-    //     assert(i < set.size());
-    //     auto& s = set[i];
-    //     buffer.clear();
-    //     buffer.reserve(dim);
-    //     buffer.insert(s.element);
-    //     return {false, s.frequency, &buffer, &theta0, &s.theta};
-    // }
     auto&       coefficient(size_t i) { return set[i].theta; }
     auto&       normalizer() { return theta0; }
     const auto& normalizer() const { return theta0; }
@@ -102,7 +75,7 @@ struct SingletonModel
     size_t size() const { return set.size(); }
 
     template <typename Pattern_Type>
-    nonstd::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
+    std::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
     {
         auto element = front(x);
         auto it      = std::find_if(
@@ -112,7 +85,7 @@ struct SingletonModel
             return {it->probability};
         }
         else
-            return nonstd::nullopt;
+            return std::nullopt;
     }
 };
 
@@ -137,26 +110,11 @@ struct ItemsetModel
 
     std::vector<itemset_storage> set;
 
-    float_type       theta0         = 1;
-    size_t           dim            = 0;
-    size_t           num_singletons = 1;
-    disc::itemset<U> buffer;
+    float_type               theta0         = 1;
+    size_t                   dim            = 0;
+    size_t                   num_singletons = 1;
+    disc::itemset<U>         buffer;
     std::vector<Block<U, V>> partitions;
-
-    
-
-    //     thread_local std::vector<Block<S, T>> transactions_x;
-    // compute_counts(dimension_of_factor(model, x), model.itemsets, transactions_x);
-    // // compute_counts(dimension_of_factor(model, x), augment_model(model, x), transactions_x);
-    // return expected_frequency_known(transactions_x, model, x) ;
-
-
-    // ItemsetObserver<U, V> get(size_t i)
-    // {
-    //     assert(i < size());
-    //     auto& s = set[i];
-    //     return {true, s.frequency, &s.point, &theta0, &s.theta};
-    // }
 
     template <typename T>
     void insert(float_type label, const T& t)
@@ -164,9 +122,8 @@ struct ItemsetModel
         buffer.clear();
         buffer.reserve(dim);
         buffer.insert(t);
-        auto it = std::find_if(set.begin(), set.end(), [&](const auto& i) {
-                return equal(i.point, buffer);
-            });
+        auto it = std::find_if(
+            set.begin(), set.end(), [&](const auto& i) { return equal(i.point, buffer); });
         if (it != set.end())
         {
             it->frequency = label;
@@ -178,12 +135,9 @@ struct ItemsetModel
         }
     }
 
-    void update_partitions() 
-    {
-        compute_counts(width(), *this, partitions);
-    }
+    void update_partitions() { compute_counts(width(), *this, partitions); }
 
-    size_t width() const { return num_singletons; } 
+    size_t width() const { return num_singletons; }
     size_t dimension() const { return dim; }
     size_t size() const { return set.size(); }
 
@@ -200,7 +154,7 @@ struct ItemsetModel
     bool           empty() const { return set.empty(); }
 
     template <typename Pattern_Type>
-    nonstd::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
+    std::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
     {
         const auto it = std::find_if(
             set.begin(), set.end(), [&](const auto& s) { return equal(s.point, x); });
@@ -209,7 +163,7 @@ struct ItemsetModel
             return {it->probability};
         }
         else
-            return nonstd::nullopt;
+            return std::nullopt;
     }
 };
 
@@ -276,9 +230,10 @@ struct MultiModel
     {
         itemsets.insert(label, t);
         itemsets.num_singletons = singletons.set.size();
-        if (estimate) {
+        if (estimate)
+        {
             estimate_model(*this);
-        }    
+        }
     }
 
     template <typename T>
@@ -286,7 +241,8 @@ struct MultiModel
     {
         singletons.insert(label, t);
         itemsets.num_singletons = singletons.set.size();
-        if (estimate) {
+        if (estimate)
+        {
             estimate_model(*this);
         }
     }
@@ -308,7 +264,7 @@ struct MultiModel
     }
 
     template <typename Pattern_Type>
-    nonstd::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
+    std::optional<float_type> get_precomputed_expectation(const Pattern_Type& x) const
     {
         return is_singleton(x) ? singletons.get_precomputed_expectation(x)
                                : itemsets.get_precomputed_expectation(x);

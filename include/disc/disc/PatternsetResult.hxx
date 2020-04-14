@@ -1,14 +1,14 @@
 #pragma once
 
 #include <disc/disc/Composition.hxx>
+#include <disc/disc/Frequencies.hxx>
+#include <disc/disc/InsertMissingSingletons.hxx>
 #include <disc/disc/Settings.hxx>
 #include <disc/distribution/Distribution.hxx>
 #include <disc/storage/Dataset.hxx>
-#include <disc/disc/Frequencies.hxx>
 
-#include <nonstd/optional.hpp>
-
-namespace sd::disc {
+namespace sd::disc
+{
 
 template <typename Trait>
 struct PatternsetResult
@@ -22,10 +22,11 @@ struct PatternsetResult
     LabeledDataset<float_type, pattern_type> summary;
     EncodingLength<float_type>               encoding;
     EncodingLength<float_type>               initial_encoding;
+    distribution_type                        model;
 
-    nonstd::optional<distribution_type> model;
-
-    template <typename DATA>
+    template <typename DATA,
+              typename = std::enable_if_t<
+                  !std::is_same_v<std::decay_t<DATA>, PatternsetResult<Trait>>>>
     PatternsetResult(DATA&& d) : data(std::forward<DATA>(d))
     {
     }
@@ -50,8 +51,7 @@ struct PatternsetResult
         c.encoding         = encoding;
         c.initial_encoding = initial_encoding;
         c.summary          = summary;
-        if (model.has_value())
-            c.models = {model.value()};
+        c.models           = {model};
         c.subset_encodings = {encoding.of_data};
 
         auto& a = c.assignment.emplace_back();
@@ -63,34 +63,32 @@ struct PatternsetResult
         compute_frequency_matrix(c.data, c.summary, c.frequency);
         return c;
     }
-
-    // explicit operator Composition<Trait>() &&
-    // {
-    //     Composition<Trait> c;
-
-    //     c.data.template col<1>() = std::move(data.template col<0>());
-    //     c.data.template col<0>().resize({c.data.template col<1>().size()}, 0);
-    //     c.data.template col<2>().resize({c.data.template col<1>().size()}, 0);
-    //     std::fill(c.data.template col<2>().begin(), c.data.template col<2>().end(), 0);
-
-    //     c.data.group_by_label();
-
-    //     c.encoding         = encoding;
-    //     c.initial_encoding = initial_encoding;
-    //     c.summary          = std::move(summary);
-    //     if (model.has_value())
-    //         c.models = {model.value()};
-    //     c.subset_encodings = {encoding.of_data};
-
-    //     auto& a = c.assignment.emplace_back();
-    //     for (size_t i = 0; i < summary.size(); ++i)
-    //     {
-    //         a.insert(i);
-    //     }
-
-    //     compute_frequency_matrix(c.data, c.summary, c.frequency);
-    //     return c;
-    // }
 };
 
+template <typename Trait>
+typename Trait::distribution_type& initialize_model(PatternsetResult<Trait>& com,
+                                                    const MiningSettings&    cfg = {})
+{
+    auto& data    = com.data;
+    auto& summary = com.summary;
+
+    if (cfg.with_singletons)
+    {
+        insert_missing_singletons(data, summary);
+    }
+
+    com.model = make_distribution(com, cfg);
+    auto& pr  = com.model;
+
+    for (const auto& i : summary)
+    {
+        pr.insert(label(i), point(i), false);
+    }
+    estimate_model(pr);
+
+    // com.initial_encoding = encode(com, cfg);
+
+    return pr;
 }
+
+} // namespace sd::disc

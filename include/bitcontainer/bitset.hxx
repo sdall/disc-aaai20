@@ -2,7 +2,7 @@
 
 #include <bitcontainer/bit_view.hxx>
 #include <containers/small_vector.hxx>
-#include <marray/marray.hxx>
+#include <ndarray/ndarray.hxx>
 
 #include <array>
 #include <vector>
@@ -20,7 +20,56 @@ struct base_bitset : public sd::bit_view<C>
     using base           = sd::bit_view<container_type>;
     using block_type     = typename base::block_type;
 
-    using base::base;
+    explicit base_bitset(size_t highest_bit, bool value = false)
+        : base(container_type(base::blocks_needed_to_store_n_bits(highest_bit + 1), 0),
+               highest_bit)
+    {
+        if (value)
+        {
+            assert(base::count() == 0);
+            base::flip_all();
+            assert(base::count() == base::length());
+        }
+    }
+    template <typename IterA, typename IterB>
+    base_bitset(IterA f, IterB l)
+    {
+        insert(std::move(f), std::move(l));
+    }
+    base_bitset() = default;
+
+    base_bitset(slice<const size_t> o) { this->insert(o); }
+
+    // template <typename T, typename = std::enable_if_t<std::is_constructible_v<C, T>>>
+    // base_bitset(bit_view<T> const& o) : base{o.container, o.length_}
+    // {
+    // }
+    template <typename T> //, typename = std::enable_if_t<!std::is_constructible_v<C, T>>>
+    base_bitset(bit_view<T> const& o)
+    {
+        this->insert(o);
+    }
+    template <typename T>
+    base_bitset& operator=(bit_view<T> const& o)
+    {
+        this->container.clear();
+        this->insert(o.container);
+        return *this;
+    }
+    // template <typename T, typename = std::enable_if_t<std::is_same_v<T, C>>>
+    // base_bitset& operator=(bit_view<T> const& o)
+    // {
+    //     this->container = o.container;
+    //     this->length_ = o.length_;
+    //     return *this;
+    // }
+    // template <typename T, typename = std::enable_if_t<std::is_same_v<T, C>>>
+    // base_bitset& operator=(bit_view<T> && o)
+    // {
+    //     this->container = std::move(o.container);
+    //     this->length_ = o.length_;
+    //     return *this;
+    // }
 
     void insert(size_t i)
     {
@@ -58,6 +107,13 @@ struct base_bitset : public sd::bit_view<C>
         }
     }
 
+    template <typename IterA, typename IterB>
+    void insert(IterA first, IterB last)
+    {
+        for (auto it = first; it != last; ++it)
+            insert(*it);
+    }
+
     void insert(slice<const size_t> is)
     {
         if (!is.empty())
@@ -81,9 +137,6 @@ struct base_bitset : public sd::bit_view<C>
         this->container.resize(k, value ? ~block_type(0) : block_type(0));
         this->length_ = n;
     }
-
-    // private:
-    // base::set;
 };
 
 template <typename S, typename T, typename U>
@@ -106,42 +159,8 @@ void intersection(const bit_view<S>& x, const bit_view<T>& y, base_bitset<U>& z)
 }
 
 template <typename T, typename Alloc = std::allocator<T>>
-struct dynamic_bitset : public sd::base_bitset<std::vector<T, Alloc>>
-{
-    using container_type = std::vector<T>;
-    using base           = sd::base_bitset<container_type>;
-
-    explicit dynamic_bitset(size_t highest_bit, bool value = false)
-        : base(container_type(base::blocks_needed_to_store_n_bits(highest_bit + 1), 0),
-               highest_bit)
-    {
-        if (value)
-        {
-            assert(base::count() == 0);
-            base::flip_all();
-            assert(base::count() == base::length());
-        }
-    }
-    dynamic_bitset() = default;
-};
-
+using dynamic_bitset = base_bitset<std::vector<T, Alloc>>;
 template <typename T, size_t N>
-struct hybrid_bitset : public base_bitset<sd::small_vector<T, N>>
-{
-    using container_type = sd::small_vector<T, N>;
-    using base           = sd::base_bitset<container_type>;
+using hybrid_bitset = base_bitset<sd::small_vector<T, N>>;
 
-    explicit hybrid_bitset(size_t highest_bit, bool value = false)
-        : base(container_type(base::blocks_needed_to_store_n_bits(highest_bit + 1), 0),
-               highest_bit)
-    {
-        if (value)
-        {
-            assert(base::count() == 0);
-            base::flip_all();
-            assert(base::count() == base::length());
-        }
-    }
-    hybrid_bitset() = default;
-};
 } // namespace sd

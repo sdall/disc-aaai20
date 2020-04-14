@@ -71,8 +71,9 @@ You can also use our implementation of the ```Maximum Entropy Distribution``` in
 
 ```{R}
     require(Rcpp)
-    Sys.setenv("PKG_CXXFLAGS"="-I./thirdparty -I./include -I./src")
-    sourceCpp("./src/Rcpp/RcppDisc.cpp")
+    inc = paste("-I", paste(getwd(),'/include', sep=''),sep='')
+    Sys.setenv("PKG_CXXFLAGS"=inc)
+    sourceCpp("src/rcpp/RcppDisc.cpp")
 ```
 
 ```{R}

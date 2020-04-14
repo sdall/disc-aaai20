@@ -2,7 +2,6 @@
 
 #include <disc/disc/Composition.hxx>
 #include <disc/disc/DecomposeContext.hxx>
-#include <disc/disc/DiscoverPatternsets.hxx>
 #include <disc/utilities/EmptyCallback.hxx>
 
 #include <iterator>
@@ -158,15 +157,15 @@ void reassign_components_step(Composition<Trait>&          c,
 
     compute_frequency_matrix(c.data, c.summary, c.frequency);
     retrain_models(c);
-    c.encoding = encoding_length_mdm(c, settings.use_bic);
+    c.encoding = encode(c, settings.use_bic);
 }
 
 template <typename Trait, typename CB1 = EmptyCallback, typename CB2 = EmptyCallback>
-Composition<Trait> reassign_components(Composition<Trait>    c,
-                                       DecompositionSettings settings,
-                                       size_t                max_iteration = 20,
-                                       CB1&&                 cb_rem        = {},
-                                       CB2&&                 cb_gain       = {})
+void reassign_components(Composition<Trait>&   c,
+                         DecompositionSettings settings,
+                         size_t                max_iteration = 20,
+                         CB1&&                 cb_rem        = {},
+                         CB2&&                 cb_gain       = {})
 {
     assert(check_invariant(c));
 
@@ -183,22 +182,21 @@ Composition<Trait> reassign_components(Composition<Trait>    c,
 
         cb_gain(before_encoding, c.encoding);
 
-        auto pv = nhc_pvalue(before_encoding.objective(), c.encoding.objective());
+        // auto pv = nhc_pvalue(before_encoding.objective(), c.encoding.objective());
 
-        if (pv < 0.05 || std::abs(before_encoding.objective() - c.encoding.objective()) < 1)
+        if (std::abs(before_encoding.objective() - c.encoding.objective()) < 1)
             break;
     }
 
     assert(check_invariant(c));
-    return c;
 }
 
 template <typename Trait, typename CALLBACK = EmptyCallback>
-Composition<Trait> reassign_components(Composition<Trait>&&                 c,
-                                       NodewiseDecompositionContext<Trait>& context,
-                                       DecompositionSettings                settings,
-                                       size_t                               max_iteration = 20,
-                                       CALLBACK&&                           cb_gain       = {})
+void reassign_components(Composition<Trait>&                  c,
+                         NodewiseDecompositionContext<Trait>& context,
+                         DecompositionSettings                settings,
+                         size_t                               max_iteration = 20,
+                         CALLBACK&&                           cb_gain       = {})
 {
     auto remover = [&context](size_t i) {
         auto& dn  = context.decompose_next;
@@ -207,11 +205,7 @@ Composition<Trait> reassign_components(Composition<Trait>&&                 c,
             dn.erase(pos);
     };
 
-    return reassign_components(std::forward<Composition<Trait>>(c),
-                               settings,
-                               max_iteration,
-                               std::move(remover),
-                               cb_gain);
+    reassign_components(c, settings, max_iteration, std::move(remover), cb_gain);
 }
 
 } // namespace disc

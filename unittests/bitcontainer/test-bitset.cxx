@@ -1,23 +1,28 @@
 #include <TrivialTest.hxx>
 #include <bitcontainer/bitcontainer.hxx>
 
+#include <disc/storage/Itemset.hxx>
+
 #include <random>
 
 using namespace sd;
 
-template<typename S, typename ...  Args>
-auto& insert(S& s, Args... args) {
-    [[maybe_unused]] auto tmp = std::initializer_list<int>{(s.insert(std::forward<Args>(args)), 0)...};
+template <typename S, typename... Args>
+auto& insert(S& s, Args... args)
+{
+    [[maybe_unused]] auto tmp =
+        std::initializer_list<int>{(s.insert(std::forward<Args>(args)), 0)...};
     return s;
 }
 
-template<typename S, typename ...  Args>
-auto& assign(S& s, Args... args) {
+template <typename S, typename... Args>
+auto& assign(S& s, Args... args)
+{
     s.clear();
     return insert(s, std::forward<Args>(args)...);
 }
 
-template<typename pattern_type> 
+template <typename pattern_type>
 void run_test()
 {
     size_t max = 1000;
@@ -48,17 +53,17 @@ void run_test()
         pattern_type s, t;
         assign(s, 1, 2, 3, 4, 5);
         assign(t, 2, 3, 6);
-        TEST(similarity(s, t) == 2);
+        TEST(size_of_intersection(s, t) == 2);
         intersection(s, t);
-        TEST(similarity(s, t) == 2);
+        TEST(size_of_intersection(s, t) == 2);
         TEST(t.count() == 2);
         TEST(intersects(s, t));
 
         assign(s, 1, 2, 3, 4, 5);
         assign(t, 6);
-        TEST(similarity(s, t) == 0);
+        TEST(size_of_intersection(s, t) == 0);
         intersection(s, t);
-        TEST(similarity(s, t) == 0);
+        TEST(size_of_intersection(s, t) == 0);
         TEST(t.count() == 0);
         TEST(!intersects(s, t));
     }
@@ -162,9 +167,11 @@ void run_test()
         pattern_type        a;
         std::vector<size_t> b{1, 2, 3, 4, 5, 7, 99};
 
-        for (auto i : b) a.insert(i);
+        for (auto i : b)
+            a.insert(i);
 
-        for (auto i : b) TEST(a.contains(i));
+        for (auto i : b)
+            TEST(a.contains(i));
 
         TEST(a.count() == b.size());
         TEST(!is_subset(999, a));
@@ -205,7 +212,10 @@ void run_test()
     {
         auto n = uniform(rng) * bits.count() / 2;
         bits.clear();
-        for (size_t j = 0; j < n; ++j) { bits.insert(iuniform(rng), true); }
+        for (size_t j = 0; j < n; ++j)
+        {
+            bits.insert(iuniform(rng), true);
+        }
         testing = bits;
         testing.insert(iuniform(rng));
         // bits.erase(front(bits));
@@ -218,7 +228,10 @@ void run_test()
     {
         auto n = uniform(rng) * max / 2;
         bits.clear();
-        for (size_t j = 0; j < n; ++j) { bits.insert(iuniform(rng), true); }
+        for (size_t j = 0; j < n; ++j)
+        {
+            bits.insert(iuniform(rng), true);
+        }
         testing = bits;
         testing.erase(iuniform(rng));
         TEST(is_subset(testing, bits));
@@ -239,14 +252,17 @@ void run_test()
     //         cpslice<size_t>{bits.container.data(), bits.container.size() / 2}};
 
     //     TEST(is_subset(view, bits));
-    //     TEST(similarity(view, bits) == count(view));
+    //     TEST(size_of_intersection(view, bits) == count(view));
     // }
 
     for (size_t i = 0; i < 100000; ++i)
     {
         auto n = uniform(rng) * (max / 2);
         bits.clear();
-        for (size_t j = 0; j < n; ++j) { bits.insert(iuniform(rng)); }
+        for (size_t j = 0; j < n; ++j)
+        {
+            bits.insert(iuniform(rng));
+        }
         auto testing = bits;
         auto idx     = iuniform(rng);
         testing.insert(idx);

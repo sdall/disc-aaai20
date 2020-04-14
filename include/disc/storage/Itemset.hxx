@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bitcontainer/bitset.hxx>
+#include <bitcontainer/extra/fwd_iterator.hxx>
 #include <bitcontainer/sparse_bitset.hxx>
 
 #include <numeric>
@@ -57,7 +58,6 @@ template <typename S>
 std::size_t get_dim(const bit_view<S>& s)
 {
     return s.empty() ? 0 : (last_entry(s) + 1);
-    // return s.length();
 }
 
 template <typename S>

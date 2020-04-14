@@ -1,7 +1,7 @@
 #pragma once
 
 #include <disc/storage/Dataset.hxx>
-#include <marray/marray.hxx>
+#include <ndarray/ndarray.hxx>
 
 #include <disc/disc/Settings.hxx>
 #include <disc/distribution/Distribution.hxx>
@@ -12,6 +12,12 @@ namespace disc
 {
 
 using AssignmentMatrix = std::vector<sparse_dynamic_bitset<size_t>>;
+
+size_t trace(const AssignmentMatrix& a)
+{
+    return std::accumulate(
+        begin(a), end(a), size_t(), [&](auto acc, const auto& x) { return acc + count(x); });
+}
 
 template <typename T>
 struct EncodingLength
@@ -39,15 +45,17 @@ struct Composition
     using float_type        = typename Trait::float_type;
     using distribution_type = typename Trait::distribution_type;
     using size_type         = typename Trait::size_type;
+    using tid_container     = long_storage_container<typename Trait::pattern_type>;
 
-    PartitionedData<pattern_type>            data;
-    LabeledDataset<float_type, pattern_type> summary;
-    AssignmentMatrix                         assignment;
-    sd::ndarray<float_type, 2>               frequency;
-    EncodingLength<float_type>               encoding;
-    EncodingLength<float_type>               initial_encoding;
-    std::vector<distribution_type>           models;
-    std::vector<float_type>                  subset_encodings;
+    PartitionedData<pattern_type>            data             = {};
+    LabeledDataset<float_type, pattern_type> summary          = {};
+    AssignmentMatrix                         assignment       = {};
+    sd::ndarray<float_type, 2>               frequency        = {};
+    EncodingLength<float_type>               encoding         = {};
+    EncodingLength<float_type>               initial_encoding = {};
+    std::vector<distribution_type>           models           = {};
+    std::vector<float_type>                  subset_encodings = {};
+    std::vector<tid_container>               masks            = {};
 };
 
 template <typename T>
@@ -61,47 +69,11 @@ bool check_invariant(const Composition<T>& comp)
         comp.subset_encodings.size() == comp.models.size());
 }
 
-template <typename Trait>
-void initialize_composition(Composition<Trait>& c, const MiningSettings& cfg)
+template <typename S>
+auto make_distribution(S const& c, MiningSettings const& cfg)
 {
-    c.data.group_by_label();
-
-    if (cfg.with_singletons)
-    {
-        insert_missing_singletons(c.data, c.summary);
-    }
-
-    c.subset_encodings.resize(c.data.num_components());
-
-    characterize_no_mining(c, cfg);
-
-    assert(check_invariant(c));
-}
-
-template <typename Trait, typename S, typename T>
-Composition<Trait> make_composition(PartitionedData<S>&&   data,
-                                    LabeledDataset<T, S>&& summary,
-                                    const MiningSettings&  cfg)
-{
-    Composition<Trait> c;
-    c.data    = std::forward<PartitionedData<S>>(data);
-    c.summary = std::forward<LabeledDataset<T, S>>(summary);
-    initialize_composition(c, cfg);
-    return c;
-}
-
-template <typename Trait, typename S>
-Composition<Trait> make_composition(PartitionedData<S>&& data, const MiningSettings& cfg)
-{
-    using T = typename Trait::float_type;
-    return make_composition<Trait, S, T>(std::forward<PartitionedData<S>>(data), {}, cfg);
-}
-
-template <typename Trait, typename S>
-Composition<Trait> make_composition(PartitionedData<S> data, const MiningSettings& cfg)
-{
-    using T = typename Trait::float_type;
-    return make_composition<Trait, S, T>(std::move(data), {}, cfg);
+    using distribution_type = typename S::distribution_type;
+    return distribution_type(c.data.dim, c.data.size(), cfg);
 }
 
 } // namespace disc

@@ -2,7 +2,6 @@
 
 #include <disc/distribution/MultiModel.hxx>
 #include <disc/storage/Itemset.hxx>
-// #include <disc/distribution/Cache.hxx>
 
 #ifndef NDEBUG
 #include <exception>
@@ -31,6 +30,7 @@ struct FactorizedModel
     };
 
     explicit FactorizedModel(size_t dim) : dim(dim) { init(dim); }
+    FactorizedModel() = default;
 
     size_t dim              = 0;
     size_t count_sets       = 0;
@@ -49,7 +49,7 @@ struct FactorizedModel
         factors.clear();
         factors.resize(dim, factor_type(dim));
 
-#pragma omp parallel for
+        // #pragma omp parallel for
         for (size_t i = 0; i < dim; ++i)
         {
             factors[i].range.insert(i);
@@ -89,12 +89,12 @@ struct FactorizedModel
     void insert_pattern(value_type frequency,
                         const T&   t,
                         size_t     max_num_itemsets,
-                        size_t     /*max_range_size*/,
-                        bool       estimate)
+                        size_t /*max_range_size*/,
+                        bool estimate)
     {
         std::vector<size_t> selection;
         selection.reserve(count(t));
-        
+
         for (size_t i = 0, n = factors.size(); i < n; ++i)
         {
             auto& f = factors[i];
@@ -110,7 +110,8 @@ struct FactorizedModel
                 selection.push_back(i);
         }
 
-        if(selection.empty()) {
+        if (selection.empty())
+        {
             return;
         }
 
@@ -122,21 +123,17 @@ struct FactorizedModel
         }
         next.factor.insert(frequency, t);
 
-        if(estimate)
+        if (estimate)
             estimate_model(next.factor);
 
-//         if (count(next.range) > max_range_size ||
-//             next.factor.itemsets.set.size() > max_num_itemsets)
-//         {
-// #ifndef NDEBUG
-//             struct patterns_not_feasible_exception : std::domain_error
-//             {
-//                 patterns_not_feasible_exception(const char* c) : std::domain_error(c) {}
-//             };
-//             throw patterns_not_feasible_exception{"pattern too large or factor is full"};
-// #endif
-//             return;
-//         }
+        if (count(next.range) > max_range_size ||
+            next.factor.itemsets.set.size() > max_num_itemsets)
+        {
+            // #ifndef NDEBUG
+            //             throw std::domain_error{"pattern too large or factor is full"};
+            // #endif
+            return;
+        }
 
         for (auto i : selection)
         {

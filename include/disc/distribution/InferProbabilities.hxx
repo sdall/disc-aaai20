@@ -6,7 +6,7 @@
 #include <disc/storage/Itemset.hxx>
 #include <disc/utilities/Support.hxx>
 
-#include <nonstd/optional.hpp>
+#include <optional>
 
 #include <numeric>
 
@@ -86,8 +86,6 @@ auto expected_frequency_known(Transactions const& transactions,
     return p;
 }
 
-
-
 template <typename Model_Type>
 size_t dimension_of_factor(const Model_Type& m)
 {
@@ -140,13 +138,12 @@ template <typename S, typename T>
 auto expected_frequency_unknown(MultiModel<S, T> const& model, disc::itemset<S> const& x)
 {
     thread_local std::vector<Block<S, T>> transactions_x;
-    viva::compute_counts(dimension_of_factor(model, x), augment_model(model, x), transactions_x);
-    return expected_frequency_known(transactions_x, model, x) ;
+    viva::compute_counts(
+        dimension_of_factor(model, x), augment_model(model, x), transactions_x);
+    return expected_frequency_known(transactions_x, model, x);
 
-    // return expected_frequency_known(model.itemsets.partitions, model, x) ; 
+    // return expected_frequency_known(model.itemsets.partitions, model, x) ;
 }
-
-
 
 template <typename S, typename T, typename Blocks>
 void compute_transactions(MultiModel<S, T> const& model,
@@ -167,9 +164,9 @@ void compute_transactions(MultiModel<S, T> const& model,
 template <typename S, typename T>
 auto expected_frequency(MultiModel<S, T> const& model, disc::itemset<S> const& x)
 {
-    if (auto p = model.get_precomputed_expectation(x); p)// && !is_singleton(x))
+    if (auto p = model.get_precomputed_expectation(x); p) // && !is_singleton(x))
     {
-        // return expected_frequency_known(model.itemsets.partitions, model, x) ; 
+        // return expected_frequency_known(model.itemsets.partitions, model, x) ;
         return p.value();
     }
     else

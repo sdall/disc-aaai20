@@ -43,9 +43,9 @@ struct Distribution
     }
 
     template <typename T>
-    bool is_item_allowed(const T& t) const
+    bool is_itemset_allowed(const T& t) const
     {
-        return get().is_item_allowed(t);
+        return get().is_itemset_allowed(t);
     }
 
 private:
@@ -59,7 +59,9 @@ struct MEDistributionImpl : Distribution<MEDistributionImpl<Model>>
     using underlying_model_type = Model;
     using float_type            = typename underlying_model_type::float_type;
     using pattern_type          = typename underlying_model_type::pattern_type;
-    
+
+    MEDistributionImpl() = default;
+
     MEDistributionImpl(size_t dimension, size_t length)
         : model(dimension)
         , epsilon(std::min(float_type(1e-16), float_type(1) / (length * dimension)))
@@ -87,7 +89,7 @@ struct MEDistributionImpl : Distribution<MEDistributionImpl<Model>>
     }
 
     template <typename T>
-    bool is_item_allowed(const T& t) const
+    bool is_itemset_allowed(const T& t) const
     {
         return model.is_pattern_feasible(t);
     }
@@ -127,6 +129,8 @@ template <typename U, typename V>
 struct MEDistribution : MEDistributionImpl<viva::FactorizedModel<U, V>>
 {
     using base = MEDistributionImpl<viva::FactorizedModel<U, V>>;
+
+    MEDistribution() = default;
 
     MEDistribution(size_t dimension,
                    size_t length,

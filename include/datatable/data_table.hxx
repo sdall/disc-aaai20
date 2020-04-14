@@ -3,7 +3,7 @@
 #include "meta.hxx"
 #include "zip_iterator.hxx"
 // #include "dyn_zip_iterator.hxx"
-#include <marray/marray.hxx>
+#include <ndarray/ndarray.hxx>
 
 #include <memory>
 #include <tuple>
@@ -95,14 +95,6 @@ struct basic_soa
 
     constexpr static size_t num_columns() { return sizeof...(Ts); }
 
-    // using iterator       = dynamic_zip_iterator<basic_soa>;
-    // using const_iterator = dynamic_zip_iterator<const basic_soa>;
-
-    // iterator       begin() { return {this, true}; }
-    // iterator       end() { return {this, false}; }
-    // const_iterator begin() const { return {this, true}; }
-    // const_iterator end() const { return {this, false}; }
-
     auto begin() const { return sd::zip(columns).begin(); }
     auto end() const { return sd::zip(columns).end(); }
     auto begin() { return sd::zip(columns).begin(); }
@@ -175,6 +167,8 @@ struct basic_soa
     {
         return get(row_index, std::index_sequence_for<Ts...>());
     }
+    decltype(auto) back() { return this->operator[](size() - 1); }
+    decltype(auto) back() const { return this->operator[](size() - 1); }
 
 private:
     template <typename Fn, size_t... Is>
@@ -211,47 +205,89 @@ struct basic_column_store : public basic_soa<Ts...>
 {
     using basic_soa<Ts...>::basic_soa;
 
+    // template <typename... Args>
+    // auto cut(Args&&... args)
+    // {
+    //     return this->map_cols([&](auto& col) { return col.cut(std::forward<Args>(args)...);
+    //     });
+    // }
+
+    // template <typename... Args>
+    // auto cut(Args&&... args) const
+    // {
+    //     return this->map_cols(
+    //         [&](const auto& col) { return col.cut(std::forward<Args>(args)...); });
+    // }
+
+    // template <typename... Args>
+    // auto stride(Args&&... args)
+    // {
+    //     return this->map_cols(
+    //         [&](auto& col) { return col.stride(std::forward<Args>(args)...); });
+    // }
+
+    // template <typename... Args>
+    // auto stride(Args&&... args) const
+    // {
+    //     return this->map_cols(
+    //         [&](const auto& col) { return col.stride(std::forward<Args>(args)...); });
+    // }
+
+    // template <size_t... Is>
+    // auto select_columns()
+    // {
+    //     using ret_t = basic_column_store<
+    //         std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>...>;
+    //     return ret_t(std::get<Is>(this->columns).propagate_const()...);
+    // }
+
+    // template <size_t... Is>
+    // auto select_columns() const
+    // {
+    //     using ret_t = basic_column_store<std::add_const_t<
+    //         std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>>...>;
+    //     return ret_t{{std::get<Is>(this->columns).propagate_const()...}};
+    // }
+
     template <typename... Args>
     auto cut(Args&&... args)
     {
-        return this->map_cols([&](auto& col) { return col.cut(std::forward<Args>(args)...); });
+        return this->map_cols(
+            [&](auto& col) { return sd::cpslice(col).cut(std::forward<Args>(args)...); });
     }
 
     template <typename... Args>
     auto cut(Args&&... args) const
     {
         return this->map_cols(
-            [&](const auto& col) { return col.cut(std::forward<Args>(args)...); });
+            [&](const auto& col) { return sd::slice(col).cut(std::forward<Args>(args)...); });
     }
 
     template <typename... Args>
     auto stride(Args&&... args)
     {
         return this->map_cols(
-            [&](auto& col) { return col.stride(std::forward<Args>(args)...); });
+            [&](auto& col) { return sd::cpslice(col).stride(std::forward<Args>(args)...); });
     }
 
     template <typename... Args>
     auto stride(Args&&... args) const
     {
-        return this->map_cols(
-            [&](const auto& col) { return col.stride(std::forward<Args>(args)...); });
+        return this->map_cols([&](const auto& col) {
+            return sd::slice(col).stride(std::forward<Args>(args)...);
+        });
     }
 
     template <size_t... Is>
     auto select_columns()
     {
-        using ret_t = basic_column_store<
-            std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>...>;
-        return ret_t(std::get<Is>(this->columns).propagate_const()...);
+        return basic_column_store(sd::cpslice(std::get<Is>(this->columns))...);
     }
 
     template <size_t... Is>
     auto select_columns() const
     {
-        using ret_t = basic_column_store<std::add_const_t<
-            std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>>...>;
-        return ret_t{{std::get<Is>(this->columns).propagate_const()...}};
+        return basic_column_store(sd::slice(std::get<Is>(this->columns)...));
     }
 
     void reserve(size_t n)
@@ -282,16 +318,28 @@ struct basic_column_store : public basic_soa<Ts...>
     {
         push_back_impl(std::forward_as_tuple(us...), std::index_sequence_for<Us...>());
     }
-
     template <typename... Us>
     void push_back(std::tuple<Us...>&& t)
     {
         push_back_impl(std::forward<std::tuple<Us...>>(t), std::index_sequence_for<Us...>());
     }
 
+    template <typename... Us>
+    decltype(auto) emplace_back(Us&&... us)
+    {
+        emplace_back_impl(std::forward_as_tuple(us...), std::index_sequence_for<Us...>());
+        return this->back();
+    }
+    template <typename... Us>
+    decltype(auto) emplace_back(std::tuple<Us...>&& t)
+    {
+        emplace_back_impl(std::forward<std::tuple<Us...>>(t), std::index_sequence_for<Us...>());
+        return this->back();
+    }
+
     void pop_back()
     {
-        foreach_tuple_impl(this->columns, [](auto& c) { c.pop_back(); });
+        this->foreach_col([](auto& c) { return c.pop_back(); });
     }
 
     template <typename Fn>
@@ -319,10 +367,15 @@ private:
     template <typename tuple_t, size_t... Is>
     void push_back_impl(tuple_t&& t, std::index_sequence<Is...>&&)
     {
-        std::initializer_list<int>{
+        [[maybe_unused]] auto _ = std::initializer_list<int>{
             (std::get<Is>(this->columns).push_back(std::get<Is>(t)), 0)...};
     }
-
+    template <typename tuple_t, size_t... Is>
+    void emplace_back_impl(tuple_t&& t, std::index_sequence<Is...>&&)
+    {
+        [[maybe_unused]] auto _ = std::initializer_list<int>{
+            (std::get<Is>(this->columns).emplace_back(std::get<Is>(t)), 0)...};
+    }
     template <typename Fn, size_t... Is>
     auto map_wrapped_impl(Fn&& fn, std::index_sequence<Is...>&&)
     {
@@ -340,11 +393,17 @@ private:
     }
 };
 
-template <typename T, size_t r = 1>
-struct column_type : public ndarray<T, r>
+// template <typename T, size_t r = 1>
+// struct column_type : public ndarray<T, r>
+// {
+//     using typename ndarray<T, r>::value_type;
+//     using ndarray<T, r>::ndarray;
+// };
+
+template <typename T>
+struct column_type
 {
-    using typename ndarray<T, r>::value_type;
-    using ndarray<T, r>::ndarray;
+    using value = std::vector<T>;
 };
 
 template <typename T, size_t r>
@@ -353,33 +412,33 @@ struct col
 };
 
 template <typename T, size_t r>
-struct column_type<col<T, r>> : public ndarray<T, r>
+struct column_type<col<T, r>>
 {
-    using typename ndarray<T, r>::value_type;
-    using ndarray<T, r>::ndarray;
+    using value = ndarray<T, r>;
 };
 
-template <typename... Ts>
-using soa_vector = basic_soa<column_type<Ts>...>;
+// template <typename... Ts>
+// using soa_vector = basic_soa<column_type<Ts>...>;
+
+// template <typename... Ts>
+// using soa_view = basic_soa<cpslice<Ts>...>;
+
+// template <typename... Ts>
+// soa_view<Ts...> view(basic_soa<column_type<Ts>...>& d)
+// {
+//     return soa_view<Ts...>(d);
+// }
 
 template <typename... Ts>
-using soa_view = basic_soa<cpslice<Ts>...>;
-
-template <typename... Ts>
-soa_view<Ts...> view(basic_soa<column_type<Ts>...>& d)
-{
-    return soa_view<Ts...>(d);
-}
-
-template <typename... Ts>
-using col_store = basic_column_store<column_type<Ts>...>;
+using col_store = basic_column_store<typename column_type<Ts>::value...>;
 
 template <typename... Ts, std::size_t... Is>
 void tuple_swap_impl(std::tuple<Ts&...>&& a,
                      std::tuple<Ts&...>&& b,
                      std::index_sequence<Is...>&&)
 {
-    std::initializer_list<int>{(std::swap(std::get<Is>(a), std::get<Is>(b)), 0)...};
+    [[maybe_unused]] auto _ =
+        std::initializer_list<int>{(std::swap(std::get<Is>(a), std::get<Is>(b)), 0)...};
 }
 
 } // namespace df

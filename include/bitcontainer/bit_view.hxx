@@ -154,6 +154,8 @@ struct bit_view
         zero_unused_bits();
     }
 
+    size_t highest_used_block() const { return unlinearize(length()).first; }
+
     constexpr std::pair<size_type, size_type> unlinearize(size_type i) const noexcept
     {
         return {i / bits_per_block, i % bits_per_block};
@@ -231,17 +233,31 @@ std::size_t last_entry(const bit_view<S>& s)
 }
 
 template <typename S, typename T>
+size_t largest_block(const bit_view<S>& s, const bit_view<T>& t)
+{
+    return std::min(s.container.size(), t.container.size());
+    // return std::min({s.container.size(), t.container.size(), s.highest_used_block() + 1,
+    // t.highest_used_block() + 1});
+}
+
+template <typename S, typename T>
 bool is_subset(const bit_view<S>& s, const bit_view<T>& t)
 {
-    if (s.empty())
-        return true;
-    if (s.count() > t.count())
+    if (s.length() == 0)
+        return true; // s is empty set
+
+    // do not call empty() to prevent the second call to count()
+
+    const auto cnt_s = s.count();
+    if (cnt_s == 0)
+        return true; // s is empty set
+
+    if (cnt_s > t.count())
         return false;
 
     const auto& a = s.container;
     const auto& b = t.container;
-
-    for (size_t i = 0, n = std::min(a.size(), b.size()); i < n; ++i)
+    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
     {
         if ((a[i] & ~b[i]))
             return false;
@@ -275,7 +291,7 @@ bool intersects(const bit_view<S>& s, const bit_view<T>& t)
 {
     const auto& a = s.container;
     const auto& b = t.container;
-    for (size_t i = 0, n = std::min(a.size(), b.size()); i < n; ++i)
+    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
     {
         if ((a[i] & b[i]))
             return true;
@@ -288,7 +304,7 @@ void intersection(const bit_view<S>& s, bit_view<T>& t)
 {
     const auto&  a = s.container;
     auto&        b = t.container;
-    const size_t m = std::min(a.size(), b.size());
+    const size_t m = largest_block(s, t);
     for (size_t i = 0; i < m; ++i)
     {
         b[i] &= a[i];
@@ -325,12 +341,6 @@ auto size_of_intersection(const bit_view<S>& s, const bit_view<T>& t) -> uint64_
 }
 
 template <typename S, typename T>
-auto similarity(const bit_view<S>& s, const bit_view<T>& t) -> uint64_t
-{
-    return size_of_intersection(s, t);
-}
-
-template <typename S, typename T>
 bool equal(const bit_view<S>& s, const bit_view<T>& t)
 {
     if (s.count() != t.count())
@@ -338,8 +348,8 @@ bool equal(const bit_view<S>& s, const bit_view<T>& t)
 
     const auto& a = s.container;
     const auto& b = t.container;
-
-    for (size_t i = 0, n = std::min(a.size(), b.size()); i < n; ++i)
+    //
+    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
     {
         if ((a[i] != b[i]))
             return false;
@@ -359,17 +369,17 @@ bool equal(const bit_view<S>& s, const bit_view<T>& t)
     }
 }
 
-template <typename S, typename Fn>
-void iterate_over_old_and_crappy(const bit_view<S>& s, Fn&& fn)
-{
-    for (size_t i = 0; i < s.length(); ++i)
-    {
-        if (s.contains(i))
-        {
-            fn(i);
-        }
-    }
-}
+// template <typename S, typename Fn>
+// void iterate_over_old_and_crappy(const bit_view<S>& s, Fn&& fn)
+// {
+//     for (size_t i = 0; i < s.length(); ++i)
+//     {
+//         if (s.contains(i))
+//         {
+//             fn(i);
+//         }
+//     }
+// }
 
 template <typename S, typename Fn>
 void iterate_over(const bit_view<S>& s, Fn&& fn)
@@ -387,6 +397,8 @@ void iterate_over(const bit_view<S>& s, Fn&& fn)
             x >>= 1;
         }
         offset += bit_view<S>::bits_per_block;
+        if (offset >= s.length())
+            break;
     }
 }
 
@@ -396,7 +408,7 @@ void setminus(bit_view<S>& s, const bit_view<T>& t)
 {
     const auto& a  = t.container;
     auto&       b  = s.container;
-    const auto  ub = std::min(a.size(), b.size());
+    const auto  ub = largest_block(s, t);
     for (size_t i = 0; i < ub; ++i)
     {
         b[i] &= ~(a[i] & b[i]);
@@ -478,21 +490,10 @@ bool any_of(const bit_view<S>& s)
     return !none_of(s);
 }
 
-// template <typename S>
-// bool all_of(const bit_view<S>& s)
-// {
-//     using block_type     = typename bit_view<S>::block_type;
-
-//     for (size_t i = 0; i < s.container.size() - 1; ++i)
-//     {
-//         if (s.container[i] == block_type(-1))
-//         {
-//             return false;
-//         }
-//     }
-
-//     return s.container.back() & block_type(-1) ==
-//     return true;
-// }
+template <typename S>
+bool all_of(const bit_view<S>& s)
+{
+    return count(s) == s.length();
+}
 
 } // namespace sd

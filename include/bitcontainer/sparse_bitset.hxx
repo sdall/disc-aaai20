@@ -94,6 +94,13 @@ struct base_bitset_sparse : sparse_bit_view<C>
             erase(i);
     }
 
+    template <typename IterA, typename IterB>
+    void insert(IterA first, IterB last)
+    {
+        for (auto it = first; it != last; ++it)
+            insert(*it);
+    }
+
     template <typename T>
     void insert(const sd::sparse_bit_view<T>& rhs)
     {
@@ -176,9 +183,9 @@ bool intersects(sparse_bit_view<S> const& s, sparse_bit_view<T> const& t)
 }
 
 template <typename S, typename T, typename U>
-void intersection(const base_bitset_sparse<S>& x,
-                  const base_bitset_sparse<T>& y,
-                  base_bitset_sparse<U>&       intersection)
+void intersection(const sparse_bit_view<S>& x,
+                  const sparse_bit_view<T>& y,
+                  base_bitset_sparse<U>&    intersection)
 {
     intersection.clear();
     intersection.reserve(std::min(x.size(), y.size()));
@@ -281,30 +288,54 @@ size_t front(const sparse_bit_view<S>& s)
 template <typename T, size_t N>
 using sparse_bitset = sd::base_bitset_sparse<std::array<T, N>>;
 
-template <typename T, typename Alloc = std::allocator<T>>
-struct sparse_dynamic_bitset : base_bitset_sparse<std::vector<T, Alloc>>
+template <typename C>
+struct resizeable_bitset_sparse : base_bitset_sparse<C>
 {
-    using container_type = std::vector<T, Alloc>;
-    using base           = base_bitset_sparse<std::vector<T, Alloc>>;
+    using base = base_bitset_sparse<C>;
+    using base::base_bitset_sparse;
 
-    explicit sparse_dynamic_bitset(size_t num_bits) { base::container.reserve(num_bits + 1); }
-    sparse_dynamic_bitset() = default;
+    resizeable_bitset_sparse() = default;
+
+    explicit resizeable_bitset_sparse(size_t num_bits)
+    {
+        this->container.reserve(num_bits + 1);
+    }
+    template <typename IterA, typename IterB>
+    resizeable_bitset_sparse(IterA f, IterB l, bool make_unique = false)
+    {
+        this->container.insert(this->container.end(), f, l);
+        std::sort(this->container.begin(), this->container.end());
+
+        if (make_unique)
+        {
+            auto it = std::unique(this->container.begin(), this->container.end());
+            this->container.erase(it, this->container.end());
+        }
+    }
+
+    template <typename T, typename = std::enable_if_t<!std::is_same_v<T, C>>>
+    resizeable_bitset_sparse(const sparse_bit_view<T>& o)
+        : resizeable_bitset_sparse(o.container.begin(), o.container.end())
+    {
+    }
+    template <typename T, typename = std::enable_if_t<!std::is_same_v<T, C>>>
+    resizeable_bitset_sparse& operator=(sparse_bit_view<T> const& o)
+    {
+        this->container.clear();
+        this->insert(o.container);
+        return *this;
+    }
+
+    template <typename T>
+    resizeable_bitset_sparse(cpslice<T> o) : resizeable_bitset_sparse(o.begin(), o.end(), true)
+    {
+    }
 };
+
+template <typename T, typename Alloc = std::allocator<T>>
+using sparse_dynamic_bitset = resizeable_bitset_sparse<std::vector<T, Alloc>>;
 
 template <typename T, size_t N>
-struct sparse_hybrid_bitset : public base_bitset_sparse<sd::small_vector<T, N>>
-{
-    using container_type = sd::small_vector<T, N>;
-    using base           = base_bitset_sparse<sd::small_vector<T, N>>;
-
-    explicit sparse_hybrid_bitset(size_t num_bits) { base::container.reserve(num_bits + 1); }
-    template <typename Iter>
-    sparse_hybrid_bitset(Iter f, Iter l)
-    {
-        base::container.append(f, l);
-        std::sort(this->begin(), this->end());
-    }
-    sparse_hybrid_bitset() = default;
-};
+using sparse_hybrid_bitset = resizeable_bitset_sparse<sd::small_vector<T, N>>;
 
 } // namespace sd

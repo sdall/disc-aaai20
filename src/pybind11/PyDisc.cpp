@@ -12,33 +12,48 @@ using pattern_type = typename trait_type::pattern_type;
 using float_type = typename trait_type::float_type;
 // using trait_type = sd::disc::Trait<pattern_type, float_type, sd::disc::MEDistribution<pattern_type, float_type>>;
 
-auto discover_patternset(const py::list& dataset, double alpha, size_t min_support) {
-    using namespace sd::disc;
+template<typename Data> 
+void insert_pylists_into_data(const py::list& in, Data& out ) 
+{
+    sd::disc::itemset<typename Data::pattern_type> buffer;
 
-    PatternsetResult<trait_type> co;
-    co.data.reserve(dataset.size());
-    itemset<pattern_type> buffer;
-    for(const auto& xs : dataset) 
+    out.reserve(in.size());
+    for(const auto& xs : in) 
     {
         buffer.clear();
         for(auto x : xs) {buffer.insert(py::cast<size_t>(x)); }
-        co.data.insert(buffer);
+        out.insert(buffer);
     }
+}
 
-    MiningSettings cfg;
-    cfg.alpha = alpha;
+template<typename Data> 
+void insert_data_into_pylist(const Data& in, const py::list& out) 
+{
+    using namespace sd::disc;
+    for(const auto &x : in) {
+        py::list xx;
+        sd::iterate_over(point(x), [&](size_t i) { xx.append(i); });
+        out.append(std::move(xx));
+    }
+}
+
+
+
+auto discover_patternset(const py::list& dataset, size_t min_support) {
+    using namespace sd::disc;
+
+    PatternsetResult<trait_type> co;
+
+    insert_pylists_into_data(dataset, co.data);
+
+    DecompositionSettings cfg;
     cfg.min_support = min_support;
     cfg.use_bic = true;
 
     co = sd::disc::discover_patternset(std::move(co), cfg);
 
     py::list patternset;
-    for(const auto &x : co.summary.col<1>()) {
-        py::list xx;
-        iterate_over(x, [&](size_t i) { xx.append(i); });
-        patternset.append(std::move(xx));
-    }
-    
+    insert_data_into_pylist(co.summary, patternset);
     auto frequencies = py::array_t<float_type>(co.summary.size());
     py::buffer_info info = frequencies.request();
     std::copy_n(co.summary.col<0>().data(), co.summary.size(), static_cast<float_type*>(info.ptr));
@@ -49,7 +64,7 @@ auto discover_patternset(const py::list& dataset, double alpha, size_t min_suppo
                           co.encoding.objective());
 }
 
-auto characterize_partitions(const py::list& dataset, const py::list& labels, double alpha, size_t min_support) {
+auto characterize_partitions(const py::list& dataset, const py::list& labels, size_t min_support) {
     using namespace sd::disc;
 
     Composition<trait_type> co;
@@ -70,29 +85,16 @@ auto characterize_partitions(const py::list& dataset, const py::list& labels, do
         // co.data.insert(buffer);
     }
 
-
-    MiningSettings cfg;
-    cfg.alpha = alpha;
+    DecompositionSettings cfg;
     cfg.min_support = min_support;
     cfg.use_bic = true;
-
-    // initialize_composition(co, cfg);
-    // co = discover_patternsets(std::move(co));
-
-    // for(size_t i = 0; i < dataset.size(); ++i) {
-    //     co.data.label(i) = py::cast<size_t>(labels[i]);
-    // }
 
     initialize_composition(co, cfg);
     auto initial_encoding = co.encoding;
     co = discover_patternsets(std::move(co), cfg);
 
     py::list patternset;
-    for(const auto &x : co.summary.col<1>()) {
-        py::list xx;
-        iterate_over(x, [&](size_t i) { xx.append(i); });
-        patternset.append(std::move(xx));
-    }
+    insert_data_into_pylist(co.summary, patternset);
     
     auto frequencies = py::array_t<float_type>();
     frequencies.resize({co.frequency.extent(0), co.frequency.extent(1)});
@@ -114,19 +116,13 @@ auto characterize_partitions(const py::list& dataset, const py::list& labels, do
                           co.encoding.objective());
 }
 
-auto discover_composition(const py::list& dataset, double alpha, size_t min_support) {
+
+auto discover_composition(const py::list& dataset, size_t min_support, double alpha) {
     using namespace sd::disc;
 
     Composition<trait_type> co;
-    co.data.reserve(dataset.size());
-    itemset<pattern_type> buffer;
-    
-    for(const auto& xs : dataset) 
-    {
-        buffer.clear();
-        for(auto x : xs) {buffer.insert(py::cast<size_t>(x)); }
-        co.data.insert(buffer);
-    }
+
+    insert_pylists_into_data(dataset, co.data);
 
     DecompositionSettings cfg;
     cfg.alpha = alpha;
@@ -135,15 +131,12 @@ auto discover_composition(const py::list& dataset, double alpha, size_t min_supp
 
     initialize_composition(co, cfg);
     auto initial_encoding = co.encoding;
-    co = mine_split_round_repeat(std::move(co), cfg);
+
+    auto pm  = [](auto& c, const auto& g) { discover_patterns_generic(c, g); };
+    decompose_until_summary_converges(co, cfg, pm, sd::EmptyCallback{});
 
     py::list patternset;
-    for(const auto &x : co.summary.col<1>()) {
-        py::list xx;
-        iterate_over(x, [&](size_t i) { xx.append(i); });
-        patternset.append(std::move(xx));
-    }
-    
+    insert_data_into_pylist(co.summary, patternset);
     auto frequencies = py::array_t<float_type>();
     {
         frequencies.resize({co.frequency.extent(0), co.frequency.extent(1)});
@@ -255,11 +248,11 @@ PYBIND11_MODULE(disc, m) {
             )doc";
 
     m.def("discover_patternset", &::discover_patternset, "A function that discovers significant patterns for a dataset using the maximum entropy distribution",
-          "dataset"_a, "alpha"_a=0.05, "min_support"_a=1);
+          "dataset"_a, "min_support"_a=1);
     m.def("characterize_partitions", &characterize_partitions, "A function that discovers significant patterns and characterizes multiple, given a partition using the maximum entropy distribution",
-          "dataset"_a, "partition_label"_a, "alpha"_a=0.05, "min_support"_a=1);
+          "dataset"_a, "partition_label"_a, "min_support"_a=1);
     m.def("discover_composition", &discover_composition, "A function that discovers differently distributed partitions of the dataset as well as significant patterns and characterizes the partitions using the maximum entropy distribution",
-          "dataset"_a, "alpha"_a=0.05, "min_support"_a=1);
+          "dataset"_a, "min_support"_a=1, "alpha"_a=0.05);
 
     py::class_<PyMEDistribution>(m, "Distribution")
         .def(py::init<size_t>())

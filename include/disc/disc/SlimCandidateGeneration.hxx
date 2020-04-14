@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include <nonstd/optional.hpp>
+#include <optional>
 
 #include <disc/storage/Dataset.hxx>
 #include <disc/storage/Itemset.hxx>
@@ -22,9 +22,10 @@ struct SlimCandidate
 };
 
 template <typename S, typename T>
-SlimCandidate<S, T> join(SlimCandidate<S, T> next, const SlimCandidate<S, T>& b)
+SlimCandidate<S, T> join(const SlimCandidate<S, T> a, const SlimCandidate<S, T>& b)
 {
-    intersection(b.row_ids, next.row_ids);
+    auto next = a;
+    intersection(b.row_ids, a.row_ids, next.row_ids);
     next.pattern.insert(b.pattern);
     next.support = count(next.row_ids);
     return next;
@@ -49,27 +50,27 @@ struct SlimGeneratorImpl
     };
 
     template <typename Data, typename ScoreFn = ConstantScoreFunction>
-    SlimGeneratorImpl(const Data&              data,
-                  size_t                   min_support,
-                  nonstd::optional<size_t> max_width = {},
-                  ScoreFn&&                score     = {})
+    SlimGeneratorImpl(const Data&           data,
+                      size_t                min_support,
+                      std::optional<size_t> max_width = {},
+                      ScoreFn&&             score     = {})
         : max_width(max_width), min_support(min_support)
     {
         init(data, std::forward<ScoreFn>(score));
     }
 
     template <typename Data, typename Patternset, typename ScoreFn = ConstantScoreFunction>
-    SlimGeneratorImpl(const Data&              data,
-                  const Patternset&        summary,
-                  size_t                   min_support,
-                  nonstd::optional<size_t> max_width = {},
-                  ScoreFn&&                score     = {})
+    SlimGeneratorImpl(const Data&           data,
+                      const Patternset&     summary,
+                      size_t                min_support,
+                      std::optional<size_t> max_width = {},
+                      ScoreFn&&             score     = {})
         : max_width(max_width), min_support(min_support)
     {
         init(data, summary, score);
     }
 
-    nonstd::optional<state_type> next()
+    std::optional<state_type> next()
     {
         if (candidates.empty())
             return {};
@@ -82,8 +83,69 @@ struct SlimGeneratorImpl
         return ret;
     }
 
-    template <typename ScoreFunction>
-    void combine_pairs(const state_type& next, ScoreFunction&& score)
+    // void remove_duplicates()
+    // {
+    //     std::sort(
+    //         begin(candidates)
+    //         end(candidates),
+    //         [](const auto& x, const auto& y) { return lexicographical_ordering(begin(x),
+    //         end(x), begin(y), end(y)); });
+
+    //     auto pos = std::unique(
+    //         begin(candidates)
+    //         end(candidates),
+    //         [](const auto& y) { return y.count() == count_joined && equal(y, joined); }
+    //     );
+    //     candidates.erase(pos, end(candidates));
+    // }
+
+    bool candidate_known(const state_type& x, size_t count_x)
+    {
+        return end(candidates) !=
+               std::find_if(begin(candidates), end(candidates), [&](const auto& y) {
+                   return x.support == y.support && y.pattern.count() == count_x &&
+                          equal(y.pattern, x.pattern);
+               });
+    }
+
+    //     template <typename ScoreFunction>
+    //     void combine_pairs(const state_type& next, ScoreFunction&& score)
+    //     {
+    //         const size_t count_next = count(next.pattern);
+
+    // #pragma omp parallel for
+    //         for (size_t i = 0; i < singletons.size(); ++i)
+    //         {
+    //             // clang-format off
+    //             if (is_subset(singletons[i].pattern, next.pattern)) continue;
+
+    //             auto joined       = join(next, singletons[i]);
+    //             auto count_joined = count(joined.pattern);
+    //             // if (is_subset(joined.pattern, next.pattern))         continue;
+    //             if (count_joined <= count_next)             continue;
+    //             if (joined.support < min_support)           continue;
+    //             if (max_width && count_joined > *max_width) continue;
+
+    //             bool already_known = false;
+    // #pragma omp critical
+    //             {
+    //                already_known = candidate_known(joined, count_joined);
+    //             }
+    //             if(already_known)                           continue;
+
+    //             joined.score = score(joined);
+    //             if (joined.score <= 0)                      continue;
+    //                 // clang-format on
+
+    // #pragma omp critical
+    //             {
+    //                 candidates.emplace_back(std::move(joined));
+    //                 ++stat_num_generated_candidates;
+    //             }
+    //         }
+    //     }
+
+    void combine_pairs(const state_type& next, bool check_if_exists)
     {
         const size_t count_next = count(next.pattern);
 
@@ -99,13 +161,11 @@ struct SlimGeneratorImpl
             if (count_joined <= count_next)             continue;
             if (joined.support < min_support)           continue;
             if (max_width && count_joined > *max_width) continue;
-            joined.score = score(joined);            
-            if (joined.score <= 0)                      continue;
-            // clang-format on
-
+                // clang-format on
 #pragma omp critical
             {
-                candidates.emplace_back(std::move(joined));
+                if (!check_if_exists || !candidate_known(joined, count_joined))
+                    candidates.emplace_back(std::move(joined));
                 ++stat_num_generated_candidates;
             }
         }
@@ -114,12 +174,15 @@ struct SlimGeneratorImpl
     template <typename ScoreFunction>
     void add_next_only(const state_type& next, ScoreFunction&& score)
     {
-        // recompute scores for patterns that are affected
+        // // recompute scores for patterns that are affected
+        // compute_scores(next, score);
+        // // prune
+        // // prune([](auto const &a) { return a.score <= 0; });
+        // // add pairs into queue
+        // combine_pairs(next, std::forward<ScoreFunction>(score));
+
+        combine_pairs(next, true);
         compute_scores(next, score);
-        // prune
-        // prune([](auto const &a) { return a.score <= 0; });
-        // add pairs into queue
-        combine_pairs(next, std::forward<ScoreFunction>(score));
     }
 
     template <typename ScoreFunction>
@@ -145,17 +208,6 @@ struct SlimGeneratorImpl
     {
         // std::make_heap(candidates.begin(), candidates.end(), ordering{});
         std::sort(candidates.begin(), candidates.end(), ordering{});
-        // auto cur = std::unique(candidates.begin(), candidates.end(),
-        //    [](const auto& a, const auto & b) {
-        //         return a.support == b.support && sd::equal(a.pattern, b.pattern);
-        //     });
-        // candidates.erase(cur, candidates.end());
-
-        // auto cur2 = std::adjacent_find(candidates.begin(), candidates.end(), 
-        //     [](const auto& a, const auto & b) {
-        //         return a.support == b.support && sd::equal(a.pattern, b.pattern);
-        //     });
-        // if(cur2 != candidates.end()) throw 0;
     }
 
     template <typename ScoreFunction>
@@ -191,7 +243,6 @@ struct SlimGeneratorImpl
         for (auto& s : singletons)
         {
             s.row_ids.reserve(data.size());
-            // reserve(s.row_ids, data.size());
             s.pattern.insert(i++);
         }
 
@@ -277,7 +328,8 @@ struct SlimGeneratorImpl
                 next = join(std::move(next), singletons[i]);
                 if (!is_singleton(next.pattern))
                 {
-                    combine_pairs(next, [](auto&&...) { return 0; });
+                    combine_pairs(next, false);
+                    // combine_pairs(next, [](auto&&...) { return 0; });
                 }
             });
         }
@@ -319,11 +371,11 @@ struct SlimGeneratorImpl
     size_t count_current_candidates() const { return candidates.size(); }
 
 private:
-    nonstd::optional<size_t> max_width;
-    size_t                   min_support = 1;
-    std::vector<state_type>  singletons;
-    std::vector<state_type>  candidates;
-    size_t                   stat_num_generated_candidates = 0;
+    std::optional<size_t>   max_width;
+    size_t                  min_support = 1;
+    std::vector<state_type> singletons;
+    std::vector<state_type> candidates;
+    size_t                  stat_num_generated_candidates = 0;
 };
 
 template <typename S, typename T>

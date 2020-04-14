@@ -1,57 +1,18 @@
 #pragma once
 
-#include <disc/disc/CharacterizeComponents.hxx>
+#include <disc/disc/CharacterizeSplit.hxx>
 #include <disc/disc/Composition.hxx>
 #include <disc/disc/DecomposeContext.hxx>
-#include <disc/disc/DiscoverPatternsets.hxx>
 #include <disc/disc/ReassignComponents.hxx>
 #include <disc/disc/TestDivergence.hxx>
-
-#include <disc/disc/DiscoverPatternsetsActualGain.hxx>
 
 namespace sd
 {
 namespace disc
 {
 
-// template <typename Trait>
-// Composition<Trait> find_patternsets(Composition<Trait>&& com, DecompositionSettings settings)
-// {
-//     if (settings.quick)
-//     {
-//         return discover_patternsets(std::forward<Composition<Trait>>(com),
-//         std::move(settings));
-//     }
-//     else
-//     {
-//         return discover_patternsets_test_actual_gain(std::forward<Composition<Trait>>(com),
-//                                                      std::move(settings));
-//     }
-// }
-
-// template <typename Trait, typename S, typename T>
-// Composition<Trait> find_patternsets(Composition<Trait>&&                   com,
-//                                     nonstd::optional<SlimGenerator<S, T>>& g,
-//                                     DecompositionSettings                  settings)
-// {
-//     if (!g.has_value())
-//         return discover_patternsets(std::forward<Composition<Trait>>(com),
-//         std::move(settings));
-
-//     if (settings.quick)
-//     {
-//         return discover_patternsets(
-//             std::forward<Composition<Trait>>(com), g.value(), std::move(settings));
-//     }
-//     else
-//     {
-//         return discover_patternsets_test_actual_gain(
-//             std::forward<Composition<Trait>>(com), g.value(), std::move(settings));
-//     }
-// }
-
 template <typename Trait, typename P>
-void just_split(Composition<Trait>& com, const P& x, size_t index, size_t label)
+void just_split_no_group_by(Composition<Trait>& com, const P& x, size_t index, size_t label)
 {
     auto set = com.data.subset(index);
     for (auto [y, t, _] : set)
@@ -59,6 +20,12 @@ void just_split(Composition<Trait>& com, const P& x, size_t index, size_t label)
         if (is_subset(x, t))
             y = label;
     }
+}
+
+template <typename Trait, typename P>
+void just_split(Composition<Trait>& com, const P& x, size_t index, size_t label)
+{
+    just_split_no_group_by(com, x, index, label);
     com.data.group_by_label();
 }
 
@@ -74,12 +41,11 @@ void undo_split_data(Composition<Trait>& com, size_t label_before, size_t label_
 }
 
 template <typename Trait, typename P>
-std::pair<bool, Composition<Trait>>
-split_no_reassign_points(Composition<Trait>           com,
-                         const P&                     x,
-                         size_t                       index,
-                         size_t                       label_after,
-                         const DecompositionSettings& settings)
+bool split_and_characterize(Composition<Trait>&          com,
+                            const P&                     x,
+                            size_t                       index,
+                            size_t                       label_after,
+                            const DecompositionSettings& settings)
 {
     size_t before       = com.data.num_components();
     size_t label_before = label(com.data.subset(index)[0]);
@@ -89,109 +55,113 @@ split_no_reassign_points(Composition<Trait>           com,
     if (com.data.num_components() <= before)
     {
         undo_split_data(com, label_after, label_before);
-        return {false, com};
+        return false;
     }
     else
     {
-        // com.frequency = make_frequencies(com.data, com.summary);
-        // com.initial_encoding = com.encoding;
-        // com                  = reassign_patterns_quick(std::move(com));
-        // com.encoding         = encoding_length_mdm(com);
-        const auto s = com.data.num_components() - 1;
-        com          = characterize_split(std::move(com), {index, s}, settings);
-        return {true, std::move(com)};
+        characterize_split(com, {index, com.data.num_components() - 1}, settings);
+        return true;
     }
 }
 
 template <typename Trait, typename P>
-std::pair<bool, Composition<Trait>> split_and_reassign(Composition<Trait>           com,
-                                                       const P&                     x,
-                                                       size_t                       index,
-                                                       size_t                       label,
-                                                       const DecompositionSettings& settings)
+bool split_and_reassign(Composition<Trait>&          com,
+                        const P&                     x,
+                        size_t                       index,
+                        size_t                       label,
+                        const DecompositionSettings& settings)
+
 {
-    auto p = split_no_reassign_points(std::move(com), x, index, label, settings);
-    if (!p.first)
-        return p;
-    p.second = reassign_components(
-        std::move(p.second), settings, settings.max_em_iterations.value_or(100000));
-    return p;
+    auto found = split_and_characterize(com, x, index, label, settings);
+    if (found)
+    {
+        reassign_components(com, settings, settings.max_em_iterations.value_or(100000));
+    }
+    return found;
 }
 
-template <typename Trait, typename P>
-std::pair<bool, Composition<Trait>> do_significant_split(Composition<Trait> com,
-                                                         const P&           x,
-                                                         size_t             x_index,
-                                                         size_t             index,
-                                                         size_t             label,
-                                                         size_t total_number_of_tests,
-                                                         const DecompositionSettings& settings)
+template <typename Trait, typename P, typename float_type>
+bool split_test_reassign(Composition<Trait>&          com,
+                         const P&                     x,
+                         size_t                       index,
+                         size_t                       label,
+                         std::pair<size_t, size_t>    component,
+                         size_t                       x_index,
+                         const float_type             alpha_js,
+                         const DecompositionSettings& settings)
+
 {
-    using float_type = typename Trait::float_type;
 
-    auto before_encoding = com.encoding;
+    bool has_split = split_and_characterize(com, x, index, label, settings);
 
-    SignificanceStatistic<float_type> stat;
-    stat.is_significant = true;
-    stat.pvalue         = 1;
+    if (!has_split ||
+        !test_stat_divergence(com, alpha_js, component.first, component.second, x_index))
+    {
+        return false;
+    }
+    else
+    {
+        reassign_components(com, settings, settings.max_em_iterations.value_or(100000));
+        return true;
+    }
+}
 
-    const auto alpha_js  = float_type(settings.alpha) / total_number_of_tests;
-    const auto alpha_nhc = float_type(settings.alpha);
-
-    const std::pair<size_t, size_t> component = {index, com.data.num_components()};
+template <typename Trait, typename P, typename F>
+bool do_split(Composition<Trait>&          com,
+              const P&                     x,
+              size_t                       x_index,
+              size_t                       index,
+              size_t                       label,
+              const F&                     alpha_js,
+              const DecompositionSettings& settings)
+{
+    assert(check_invariant(com));
+    assert(x_index < com.summary.size());
+    assert(index < com.data.num_components());
 
     if (settings.test_divergence)
     {
-        auto [has_split, d] =
-            split_no_reassign_points(std::move(com), x, index, label, settings);
-        com = std::move(d);
-
-        if (!has_split) // || before_encoding.objective() <= com.encoding.objective())
-        {
-            return {false, std::move(com)};
-        }
-
-        auto stat =
-            significance_statistics(com, alpha_js, component.first, component.second, x_index);
-
-        if (!stat.is_significant)
-        {
-            return {false, std::move(com)};
-        }
-
-        com = reassign_components(
-            std::move(com), settings, settings.max_em_iterations.value_or(100000));
+        return split_test_reassign(com,
+                                   x,
+                                   index,
+                                   label,
+                                   {index, com.data.num_components()},
+                                   x_index,
+                                   alpha_js,
+                                   settings);
     }
     else
     {
-        auto [has_split, d] = split_and_reassign(std::move(com), x, index, label, settings);
-        com                 = std::move(d);
-        if (!has_split)
-        {
-            return {false, std::move(com)};
-        }
+        return split_and_reassign(com, x, index, label, settings);
     }
-
-    auto pvalue         = nhc_pvalue(before_encoding.objective(), com.encoding.objective());
-    bool is_significant = pvalue < alpha_nhc;
-
-    if (is_significant && settings.test_divergence)
-    {
-        stat =
-            significance_statistics(com, alpha_js, component.first, component.second, x_index);
-        is_significant &= stat.is_significant;
-    }
-
-    // info::log_candidate_trial<float_type>(
-    //     x, before_encoding, com.encoding, stat.pvalue, pvalue, alpha_nhc);
-
-    return {is_significant, std::move(com)};
 }
 
-template <typename T>
-bool is_split_fr_low(const T& fr, const T& minfr)
+template <typename Trait, typename P, typename F>
+bool do_significant_split(Composition<Trait>&          com,
+                          const P&                     x,
+                          size_t                       x_index,
+                          size_t                       index,
+                          size_t                       label,
+                          const F&                     alpha_js,
+                          const DecompositionSettings& settings)
 {
-    return fr < minfr || 1.0 - fr < minfr;
+
+    const auto enc_before = com.encoding;
+    const auto k          = com.data.num_components();
+    const bool has_split  = do_split(com, x, x_index, index, label, alpha_js, settings);
+    // const auto pvalue     = nhc_pvalue(enc_before.objective(), com.encoding.objective());
+
+    bool is_significant =
+        com.encoding.objective() < enc_before.objective(); // pvalue < settings.alpha;
+
+    if (settings.test_divergence && is_significant && has_split &&
+        k < com.data.num_components())
+    {
+        is_significant &=
+            test_stat_divergence(com, alpha_js, index, com.data.num_components() - 1, x_index);
+    }
+
+    return is_significant;
 }
 
 template <typename T, typename S>
@@ -206,23 +176,49 @@ void insert_distinct_nonsingletons(const disc::LabeledDataset<T, S>& splitset,
 }
 
 template <typename Trait>
+bool is_early_reject(const Composition<Trait>&    com,
+                     size_t                       pattern_index,
+                     size_t                       comp_index,
+                     const DecompositionSettings& settings)
+{
+    using float_type = typename Trait::float_type;
+
+    assert(pattern_index < com.summary.size());
+    assert(com.frequency.shape().contains({pattern_index, comp_index}));
+    assert(com.frequency.shape().contains({pattern_index, com.frequency.extent(1) - 1}));
+
+    const auto q_i   = com.frequency(pattern_index, comp_index);
+    const auto q     = com.frequency(pattern_index, com.frequency.extent(1) - 1);
+    const auto minfr = float_type(settings.min_support) / com.data.size();
+
+    if (q_i < minfr || (float_type(1) - q_i) < minfr || q < minfr)
+    {
+        return true;
+    }
+    else
+        return false;
+}
+
+template <typename Trait>
 auto decompose_step_one_component(const Composition<Trait>&            com,
                                   const size_t                         comp_index,
                                   NodewiseDecompositionContext<Trait>& ctx,
                                   const DecompositionSettings&         settings,
                                   std::atomic_int&                     label_counter)
-    -> nonstd::optional<std::pair<size_t, Composition<Trait>>>
 {
     constexpr const bool top_level_parallel = true;
 
     using float_type = typename Trait::float_type;
 
-    nonstd::optional<std::pair<size_t, size_t>> split_on = nonstd::nullopt;
-    nonstd::optional<Composition<Trait>>        result   = nonstd::nullopt;
+    std::optional<std::pair<size_t, size_t>> split_on = std::nullopt;
+    std::optional<Composition<Trait>>        result   = std::nullopt;
 
+    assert(check_invariant(com));
     assert(com.frequency.extent(0) == com.summary.size());
     assert(comp_index < com.assignment.size());
     assert(comp_index < com.data.num_components());
+
+    thread_local Composition<Trait> next;
 
 #pragma omp parallel for if (top_level_parallel)
     for (size_t jj = 0; jj < com.assignment[comp_index].size(); ++jj)
@@ -232,42 +228,32 @@ auto decompose_step_one_component(const Composition<Trait>&            com,
         if (ctx.has_rejected.find({comp_index, j}) != ctx.has_rejected.end())
             continue;
 
-        assert(j < com.summary.size());
-        assert(com.frequency.shape().contains({j, comp_index}));
-        assert(com.frequency.shape().contains({j, com.frequency.extent(1) - 1}));
-
-        const auto q_i   = com.frequency(j, comp_index);
-        const auto q     = com.frequency(j, com.frequency.extent(1) - 1);
-        const auto minfr = float_type(settings.min_support) / com.data.size();
-
-        if (q_i < minfr || /*(T(1) - q_i) < minfr ||*/ q < minfr)
-            continue;
-        if (auto test_j = significance_statistics_pattern(com, settings.alpha, comp_index, j);
-            !test_j.is_significant)
+        if (is_early_reject(com, j, comp_index, settings))
         {
-            ctx.has_rejected.insert({comp_index, j});
+#pragma omp critical
+            {
+                ctx.has_rejected.insert({comp_index, j});
+            }
             continue;
         }
 
-        const auto  label         = label_counter++;
-        const auto& split_pattern = com.summary.point(j);
+        const auto  label           = label_counter++;
+        const auto& split_pattern   = com.summary.point(j);
+        const auto  corrected_alpha = float_type(settings.alpha) / ctx.total_number_of_tests;
 
-        auto [is_significant, d] = do_significant_split(
-            com, split_pattern, j, comp_index, label, ctx.total_number_of_tests, settings);
-
-        auto& /*clang-7 bug*/ e = d;
-
-        is_significant &= d.data.num_components() > com.data.num_components();
+        next                = com;
+        bool is_significant = do_significant_split(
+            next, split_pattern, j, comp_index, label, corrected_alpha, settings);
 
         if (is_significant)
         {
 #pragma omp critical
             {
                 if (!result ||
-                    (result && result->encoding.objective() > e.encoding.objective()))
+                    (result && result->encoding.objective() > next.encoding.objective()))
                 {
                     split_on = {j, label};
-                    result   = std::move(e);
+                    result   = std::move(next);
                 }
             }
         }
@@ -283,29 +269,23 @@ auto decompose_step_one_component(const Composition<Trait>&            com,
     if (split_on.has_value())
     {
         ctx.has_rejected.insert(*split_on);
-        return {{split_on.value().first, std::move(result.value())}};
     }
-    else
-    {
-        return {};
-    }
+
+    return result;
 }
 
 template <typename Trait, typename CALLBACK = EmptyCallback>
-std::pair<bool, Composition<Trait>> decompose_round(Composition<Trait>                   com,
-                                                    NodewiseDecompositionContext<Trait>& ctx,
-                                                    const DecompositionSettings& settings,
-                                                    CALLBACK&&                   callback = {})
+bool decompose_round(Composition<Trait>&                  com,
+                     NodewiseDecompositionContext<Trait>& ctx,
+                     const DecompositionSettings&         settings,
+                     CALLBACK&&                           callback = {})
 {
-    // using optional_triple = nonstd::optional<std::tuple<size_t, size_t, size_t>>;
-
     insert_distinct_nonsingletons(ctx.splitset, com.summary);
-
-    // info::log_overall_progress(com.encoding);
 
     std::atomic_int label_counter = com.data.num_components() + 1;
 
     ctx.total_number_of_tests += ctx.to_decompose.size() * com.summary.size();
+
     /*
      * for any to-be-decomposed component:
      */
@@ -319,39 +299,32 @@ std::pair<bool, Composition<Trait>> decompose_round(Composition<Trait>          
         auto next = decompose_step_one_component(com, comp_index, ctx, settings, label_counter);
         if (next)
         {
-            com = std::move(next->second);
-
-            // if(cfg.intermediate_mining) {
-            //     com = discover_patternsets(std::move(com), cfg);
-            // }
+            const auto k = com.data.num_components();
+            com          = std::move(*next);
 
             callback(std::as_const(com));
 
             ctx.decompose_next.push_back(comp_index);
-            ctx.decompose_next.push_back(com.data.num_components() - 1);
-
-            // info::log_found_local_split(
-            //     comp_index, next->first, com.summary.point(next->first));
+            if (k < com.data.num_components())
+            {
+                ctx.decompose_next.push_back(com.data.num_components() - 1);
+            }
         }
     }
 
     ctx.to_decompose.clear();
     std::swap(ctx.to_decompose, ctx.decompose_next);
-
     simplify_labels(com.data);
-
-    // info::log_overall_progress(com.encoding);
-
-    return {!ctx.to_decompose.empty(), std::move(com)};
+    return !ctx.to_decompose.empty();
 }
 
-template <typename Trait, typename Call = EmptyCallback>
-Composition<Trait> decompose_maybe_mine(Composition<Trait>                   com,
-                                        NodewiseDecompositionContext<Trait>& ctx,
-                                        DecompositionSettings                settings,
-                                        Call&&                               report = {})
+template <typename Trait, typename PatternMiner, typename Call = EmptyCallback>
+void decompose_dataset(Composition<Trait>&                  com,
+                       NodewiseDecompositionContext<Trait>& ctx,
+                       PatternMiner&&                       miner,
+                       DecompositionSettings                settings,
+                       Call&&                               report = {})
 {
-    // ctx.total_number_of_tests = 1;
     ctx.to_decompose.resize(com.data.num_components());
     std::iota(ctx.to_decompose.begin(), ctx.to_decompose.end(), 0);
 
@@ -365,30 +338,35 @@ Composition<Trait> decompose_maybe_mine(Composition<Trait>                   com
         if (max_k && k >= *max_k)
             break;
 
-        auto [has_next, d] = decompose_round(std::move(com), ctx, settings, report);
-        com                = std::move(d);
+        auto has_next = decompose_round(com, ctx, settings, report);
 
-        if (settings.intermediate_mining)
-        {
-            com = discover_patternsets(std::move(com), /*ctx.generator,*/ settings);
-            report(std::as_const(com));
-        }
+        miner(com, settings);
 
         if (!has_next)
         {
             break;
         }
     }
-
-    return com;
 }
 
-template <typename Trait, typename Call = EmptyCallback>
-Composition<Trait>
-decompose_maybe_mine(Composition<Trait> com, DecompositionSettings settings, Call&& report = {})
+template <bool Intermediate_Mining,
+          typename Trait,
+          typename Miner,
+          typename Call = EmptyCallback>
+void decompose_maybe_mine(Composition<Trait>&                  com,
+                          NodewiseDecompositionContext<Trait>& ctx,
+                          Miner&&                              miner,
+                          const DecompositionSettings&         cfg,
+                          Call&&                               report = {})
 {
-    NodewiseDecompositionContext<Trait> ctx;
-    return decompose_maybe_mine(std::move(com), ctx, settings, report);
+    if (Intermediate_Mining)
+    {
+        decompose_dataset(com, ctx, miner, cfg, std::forward<Call>(report));
+    }
+    else
+    {
+        decompose_dataset(com, ctx, [](auto&&...) {}, cfg, std::forward<Call>(report));
+    }
 }
 
 } // namespace disc

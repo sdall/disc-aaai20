@@ -25,7 +25,7 @@ struct NodewiseDecompositionContext
     andres::RandomAccessSet<std::pair<size_t, size_t>> has_rejected;
     sd::disc::LabeledDataset<float_type, pattern_type> splitset;
 
-    nonstd::optional<SlimGenerator<pattern_type, float_type>> generator;
+    std::optional<SlimGenerator<pattern_type, float_type>> generator;
 
     size_t total_number_of_tests = 1;
 };

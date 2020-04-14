@@ -1,7 +1,7 @@
+#include <Rcpp.h>
+
 #include <disc/disc/Disc.hxx>
 #include <disc/disc/Desc.hxx>
-
-#include <Rcpp.h>
 
 // [[Rcpp::plugins(cpp17)]]
 // [[Rcpp::plugins(openmp)]]
@@ -20,7 +20,7 @@ using trait_type = sd::disc::Trait<itemset_type, float_type, sd::disc::MEDistrib
 //' @return the composition: patterns, their frequencies and assignments, BIC scores
 //' @export
 // [[Rcpp::export]]
-Rcpp::List discover_patternset(const Rcpp::List& dataset, double alpha = 0.05, size_t min_support = 1) 
+Rcpp::List discover_patternset(const Rcpp::List& dataset, size_t min_support = 1) 
 {
     PatternsetResult<trait_type> c;
     itemset<itemset_type> buf;
@@ -34,8 +34,7 @@ Rcpp::List discover_patternset(const Rcpp::List& dataset, double alpha = 0.05, s
         c.data.insert(buf);
     }
 
-    MiningSettings cfg;
-    cfg.alpha = alpha;
+    DecompositionSettings cfg;
     cfg.min_support = min_support;
     cfg.use_bic = true;
 
@@ -68,7 +67,7 @@ Rcpp::List discover_patternset(const Rcpp::List& dataset, double alpha = 0.05, s
 //' @return the composition: patterns, their frequencies and assignments, BIC scores
 //' @export
 // [[Rcpp::export]]
-Rcpp::List characterize_partitions(const Rcpp::List& dataset, const Rcpp::List& labels, double alpha = 0.05, size_t min_support = 1) 
+Rcpp::List characterize_partitions(const Rcpp::List& dataset, const Rcpp::List& labels, size_t min_support = 1) 
 {
     Composition<trait_type> c;
     itemset<itemset_type> buf;
@@ -84,8 +83,7 @@ Rcpp::List characterize_partitions(const Rcpp::List& dataset, const Rcpp::List& 
         ++i;
     }
 
-    MiningSettings cfg;
-    cfg.alpha = alpha;
+    DecompositionSettings cfg;
     cfg.min_support = min_support;
     cfg.use_bic = true;
 
@@ -125,8 +123,6 @@ Rcpp::List characterize_partitions(const Rcpp::List& dataset, const Rcpp::List& 
     return result;
 }
 
-
-
 //' A function that discovers differently distributed partitions of the dataset as well as significant patterns and characterizes the partitions using the maximum entropy distribution
 //' @param dataset in sparse matrix format, i.e. a list of lists. E.g. list(c(1,2), c(2, 3))
 //' @param alpha the initial significance level for hypothesis tests
@@ -154,7 +150,8 @@ Rcpp::List discover_composition(const Rcpp::List& dataset, double alpha = 0.05, 
     cfg.use_bic = true;
 
     initialize_composition(c, cfg);
-    c = mine_split_round_repeat(std::move(c), cfg);
+    auto pm  = [](auto& c, const auto& g) { discover_patterns_generic(c, g); };
+    decompose_until_summary_converges(c, cfg, pm, sd::EmptyCallback{});
     
     Rcpp::List result;
 
