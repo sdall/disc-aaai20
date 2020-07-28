@@ -11,7 +11,7 @@ if platform.system() == 'Windows':
     cpp_args = ['/std:c++latest', '/MD', '/O2', '/Ob2', '/DNDEBUG', '/MT', '/openmp']
 else:
     cpp_args = ['-std=gnu++17', '-O3', '-march=native', '-fopenmp']
-    cpp_libs = ['gomp', 'tbb']
+    cpp_libs = ['gomp', 'tbb', 'quadmath']
 
 ext_modules = [
     Extension(
