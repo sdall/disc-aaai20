@@ -25,30 +25,29 @@ The following ```python``` and ```R``` libraries are thin layers around a common
 
 ## Python
 
-```{sh}
+```sh
     pip install git+https://github.com/sdall/disc-aaai20.git
 ```
 
 For a complete example see the notebook ```jupyter/disc-iris.ipynb```.
 
-```{python}
+```python
     import disc
     data = [
         [1, 2, 3], 
         [1, 4, 5], 
-        ...
+        # ...
     ]
 
     # DESC: Discover patternset for a single dataset
 
     c = disc.discover_patternset(data)
-    for a,b in zip(["Set", "Frequencies", "Initial BIC", "BIC"], c):
-        print(str(a) + ' ' + str(b))
+    ratio = c["encoding"] / c["initial_encoding"]
 
     # DESC: Discover pattern-composition for decomposed dataset
     #       The labels correspond to the component to which a row in the dataset belongs to 
 
-    labels=[0, 1, ...]
+    labels=[0, 1]
     c = disc.characterize_partitions(data, labels)
 
     # DISC: Jointly decompose the dataset and discover the pattern-composition
@@ -57,7 +56,7 @@ For a complete example see the notebook ```jupyter/disc-iris.ipynb```.
 
 You can also use our implementation of the ```Maximum Entropy Distribution``` independently from the rest
 
-```{python}
+```python
     # make sure that any element i < dim_of_data
     dim_of_data = 10
     Distribution p(dim_of_data)
@@ -69,14 +68,14 @@ You can also use our implementation of the ```Maximum Entropy Distribution``` in
 
 ## R
 
-```{R}
+```R
     require(Rcpp)
     inc = paste("-I", paste(getwd(),'/include', sep=''),sep='')
     Sys.setenv("PKG_CXXFLAGS"=inc)
     sourceCpp("src/rcpp/RcppDisc.cpp")
 ```
 
-```{R}
+```R
     library(discminer)
     data = list(c(1, 2, 3), c(1, 4, 5))
     labels <- list(0, 1)
@@ -85,8 +84,7 @@ You can also use our implementation of the ```Maximum Entropy Distribution``` in
     s <- characterize_partitions(data, labels, 0.05, 1)
     s <- discover_composition(data, 0.05, 1)
 
-    dim=6
-    p <- new(MEDistribution, dim)
+    p <- new(MEDistribution, 10)
     p$infer(c(1, 2))
     p$insert(0.1, c(1, 2))
     p$infer(c(1, 2))

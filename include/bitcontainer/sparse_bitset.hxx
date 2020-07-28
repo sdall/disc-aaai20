@@ -1,7 +1,5 @@
 #pragma once
 
-#include <containers/small_vector.hxx>
-
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -61,6 +59,13 @@ struct sparse_bit_view
     container_type container;
 };
 
+template <typename S>
+void swap(sparse_bit_view<S>& a, sparse_bit_view<S>& b)
+{
+    using std::swap;
+    swap(a.container, b.container);
+}
+
 template <typename T>
 struct bit_view;
 
@@ -116,7 +121,7 @@ struct base_bitset_sparse : sparse_bit_view<C>
     template <typename T>
     void insert(const sd::bit_view<T>& rhs)
     {
-        iterate_over(rhs, [&](size_t i) { insert(i); });
+        foreach(rhs, [&](size_t i) { insert(i); });
     }
 
     void insert(const cpslice<size_t> rhs)
@@ -129,6 +134,21 @@ struct base_bitset_sparse : sparse_bit_view<C>
         a.erase(std::unique(a.begin(), a.end()), a.end());
         // assert(std::is_sorted(container.begin(), container.end()));
     }
+
+    template <typename S>
+    void assign(S&& rhs)
+    {
+        clear();
+        insert(rhs);
+    }
+
+    template <typename IterA, typename IterB>
+    void assign(IterA first, IterB last)
+    {
+        clear();
+        insert(first, last);
+    }
+
     void clear() { container.clear(); }
 
     auto data() const { return container.data(); }
@@ -232,7 +252,7 @@ bool equal(const sparse_bit_view<S>& s, const sparse_bit_view<T>& t)
 }
 
 template <typename S, typename Fn>
-void iterate_over(const sparse_bit_view<S>& s, Fn&& fn)
+void foreach(const sparse_bit_view<S>& s, Fn&& fn)
 {
     for (const auto& i : s.container)
     {
@@ -240,18 +260,41 @@ void iterate_over(const sparse_bit_view<S>& s, Fn&& fn)
     }
 }
 
+template <typename A, typename B>
+void set_difference_inplace(A& a, const B& b)
+{
+    for (auto i = a.begin(), j = b.begin(); i != a.end() && j != b.end();)
+    {
+        if (*i < *j)
+        {
+            ++i;
+        }
+        else if (*j < *i)
+        {
+            ++j;
+        }
+        else
+        {
+            i = a.erase(i);
+            ++j;
+        }
+    }
+}
+
 // t <- t \ s
 template <typename S, typename T>
 void setminus(sparse_bit_view<S>& s, const sparse_bit_view<T>& t)
 {
-    T next;
-    next.reserve(s.size());
-    std::set_difference(s.container.begin(),
-                        s.container.end(),
-                        t.container.begin(),
-                        t.container.end(),
-                        std::back_inserter(next));
-    s.container = std::move(next);
+    set_difference_inplace(s.container, t.container);
+    // thread_local T next;
+    // next.clear();
+    // next.reserve(s.size());
+    // std::set_difference(s.container.begin(),
+    //                     s.container.end(),
+    //                     t.container.begin(),
+    //                     t.container.end(),
+    //                     std::back_inserter(next));
+    // s.container = std::move(next);
 }
 
 // u <- s \ t
@@ -334,8 +377,5 @@ struct resizeable_bitset_sparse : base_bitset_sparse<C>
 
 template <typename T, typename Alloc = std::allocator<T>>
 using sparse_dynamic_bitset = resizeable_bitset_sparse<std::vector<T, Alloc>>;
-
-template <typename T, size_t N>
-using sparse_hybrid_bitset = resizeable_bitset_sparse<sd::small_vector<T, N>>;
 
 } // namespace sd

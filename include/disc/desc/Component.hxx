@@ -1,9 +1,9 @@
 #pragma once
 
-#include <disc/disc/Composition.hxx>
-#include <disc/disc/Frequencies.hxx>
-#include <disc/disc/InsertMissingSingletons.hxx>
-#include <disc/disc/Settings.hxx>
+#include <disc/desc/Composition.hxx>
+#include <disc/desc/Frequencies.hxx>
+#include <disc/desc/InsertMissingSingletons.hxx>
+#include <disc/desc/Settings.hxx>
 #include <disc/distribution/Distribution.hxx>
 #include <disc/storage/Dataset.hxx>
 
@@ -11,7 +11,7 @@ namespace sd::disc
 {
 
 template <typename Trait>
-struct PatternsetResult
+struct Component
 {
     using pattern_type      = typename Trait::pattern_type;
     using float_type        = typename Trait::float_type;
@@ -24,18 +24,18 @@ struct PatternsetResult
     EncodingLength<float_type>               initial_encoding;
     distribution_type                        model;
 
-    template <typename DATA,
-              typename = std::enable_if_t<
-                  !std::is_same_v<std::decay_t<DATA>, PatternsetResult<Trait>>>>
-    PatternsetResult(DATA&& d) : data(std::forward<DATA>(d))
+    template <
+        typename DATA,
+        typename = std::enable_if_t<!std::is_same_v<std::decay_t<DATA>, Component<Trait>>>>
+    Component(DATA&& d) : data(std::forward<DATA>(d))
     {
     }
 
-    PatternsetResult()                        = default;
-    PatternsetResult(PatternsetResult&&)      = default;
-    PatternsetResult(const PatternsetResult&) = default;
-    PatternsetResult& operator=(const PatternsetResult&) = default;
-    PatternsetResult& operator=(PatternsetResult&&) = default;
+    Component()                 = default;
+    Component(Component&&)      = default;
+    Component(const Component&) = default;
+    Component& operator=(const Component&) = default;
+    Component& operator=(Component&&) = default;
 
     explicit operator Composition<Trait>() const
     {
@@ -66,27 +66,29 @@ struct PatternsetResult
 };
 
 template <typename Trait>
-typename Trait::distribution_type& initialize_model(PatternsetResult<Trait>& com,
-                                                    const MiningSettings&    cfg = {})
+typename Trait::distribution_type& initialize_model(Component<Trait>& c, const Config& cfg = {})
 {
-    auto& data    = com.data;
-    auto& summary = com.summary;
+    auto& data    = c.data;
+    auto& summary = c.summary;
 
-    if (cfg.with_singletons)
-    {
-        insert_missing_singletons(data, summary);
-    }
+    insert_missing_singletons(data, summary);
 
-    com.model = make_distribution(com, cfg);
-    auto& pr  = com.model;
+    data.dim = std::max(data.dim, summary.dim);
+
+    c.model = make_distribution(c, cfg);
+
+    assert(c.model.model.dim == data.dim);
+    assert(c.model.model.factors.size() == data.dim);
+
+    auto& pr = c.model;
 
     for (const auto& i : summary)
     {
-        pr.insert(label(i), point(i), false);
+        if (pr.is_allowed(point(i)))
+        {
+            pr.insert(label(i), point(i), true);
+        }
     }
-    estimate_model(pr);
-
-    // com.initial_encoding = encode(com, cfg);
 
     return pr;
 }

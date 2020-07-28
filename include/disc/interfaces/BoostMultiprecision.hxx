@@ -2,66 +2,107 @@
 #ifndef INTERFACE_BOOST_MULTIPRECISION
 #define INTERFACE_BOOST_MULTIPRECISION
 
-#if WITH_QUADMATH && __has_include(<quadmath.h>) &&__has_include(<boost/multiprecision/float128.hpp>)
+#if __has_include(<quadmath.h>) && __has_include(<boost/multiprecision/float128.hpp>)
+// #pragma message "float128"
 
-#define HAS_QUADMATH 1
+#define HAS_HIGH_PRECISION_FLOAT_TYPE 1
 
-#include <boost/math/special_functions.hpp>
+#include <limits>
 #include <boost/multiprecision/float128.hpp>
-#include <cmath>
-#include <iostream>
 
-static const boost::multiprecision::float128 float128_type_log_of_2 =
-    boost::multiprecision::log(boost::multiprecision::float128(2));
+using precise_float_t = boost::multiprecision::float128;
+// using precise_float_t = __float128;
 
-namespace std
+namespace sd::disc
 {
-// I know that this is undefined behaviour; TODO: use ADL in source code
-auto log2(const boost::multiprecision::float128& x)
+constexpr const char* float_storage_type_to_str(boost::multiprecision::float128)
 {
-    return boost::multiprecision::log(x) / float128_type_log_of_2;
+    return "float128";
 }
-auto log(const boost::multiprecision::float128& x) { return boost::multiprecision::log(x); }
-auto abs(const boost::multiprecision::float128& x) { return boost::multiprecision::abs(x); }
-auto exp2(const boost::multiprecision::float128& x) { return boost::multiprecision::pow(2, x); }
-auto isnan(const boost::multiprecision::float128& x) { return boost::multiprecision::isnan(x); }
-auto isinf(const boost::multiprecision::float128& x) { return boost::multiprecision::isinf(x); }
-auto sqrt(const boost::multiprecision::float128& x) { return boost::multiprecision::sqrt(x); }
-auto fabs(const boost::multiprecision::float128& x) { return boost::multiprecision::abs(x); }
-auto fma(const boost::multiprecision::float128& a,
-         const boost::multiprecision::float128& x,
-         const boost::multiprecision::float128& b)
-{
-    return a * x + b;
-}
-
-} // namespace std
-
-namespace boost::multiprecision
-{
-auto log2(const float128& x) { return log(x) / float128_type_log_of_2; }
-} // namespace boost::multiprecision
+} // namespace sd::disc
 
 #pragma omp declare reduction \
-  (*:boost::multiprecision::float128:omp_out=omp_out*omp_in) \
+  (*:precise_float_t:omp_out=omp_out*omp_in) \
   initializer(omp_priv=1)
 
 #pragma omp declare reduction \
-  (+:boost::multiprecision::float128:omp_out=omp_out+omp_in) \
+  (+:precise_float_t:omp_out=omp_out+omp_in) \
   initializer(omp_priv=0)
 
+namespace std
+{
+auto log2(const precise_float_t& x) { return boost::multiprecision::log2(x); }
+auto abs(const precise_float_t& x) { return boost::multiprecision::abs(x); }
+auto exp2(const precise_float_t& x) { return boost::multiprecision::exp2(x); }
+auto isnan(const precise_float_t& x) { return boost::multiprecision::isnan(x); }
+auto isinf(const precise_float_t& x) { return boost::multiprecision::isinf(x); }
+auto sqrt(const precise_float_t& x) { return boost::multiprecision::sqrt(x); }
+} // namespace std
+
+#elif __has_include(<mpfr.h>) && __has_include(<boost/multiprecision/mpfr.hpp>)
+// #pragma message "mpfr"
+
+#define HAS_HIGH_PRECISION_FLOAT_TYPE 1
+
+#include <boost/multiprecision/mpfr.hpp>
+
+using precise_float_t = boost::multiprecision::static_mpfr_float_100;
 namespace sd::disc
 {
-using float_hp_t = boost::multiprecision::float128;
+constexpr const char* float_storage_type_to_str(boost::multiprecision::static_mpfr_float_100)
+{
+    return "static_mpfr_float_100";
 }
+} // namespace sd::disc
+
+#pragma omp declare reduction \
+  (*:precise_float_t:omp_out=omp_out*omp_in) \
+  initializer(omp_priv=1)
+
+#pragma omp declare reduction \
+  (+:precise_float_t:omp_out=omp_out+omp_in) \
+  initializer(omp_priv=0)
+
+namespace std
+{
+auto log2(const precise_float_t& x) { return boost::multiprecision::log2(x); }
+auto abs(const precise_float_t& x) { return boost::multiprecision::abs(x); }
+auto exp2(const precise_float_t& x) { return boost::multiprecision::exp2(x); }
+auto isnan(const precise_float_t& x) { return boost::multiprecision::isnan(x); }
+auto isinf(const precise_float_t& x) { return boost::multiprecision::isinf(x); }
+auto sqrt(const precise_float_t& x) { return boost::multiprecision::sqrt(x); }
+} // namespace std
 
 #else
 
-namespace sd::disc
-{
-using float_hp_t = long double;
-}
+// #pragma message "long double"
+
+using precise_float_t = long double;
 
 #endif
 
+// #if HAS_HIGH_PRECISION_FLOAT_TYPE
+
+// #pragma omp declare reduction (*:precise_float_t:omp_out=omp_out*omp_in)
+// initializer(omp_priv=1) #pragma omp declare reduction
+// (+:precise_float_t:omp_out=omp_out+omp_in) initializer(omp_priv=0)
+
+// namespace std
+// {
+// auto log2(const precise_float_t& x) { return boost::multiprecision::log2(x); }
+// auto abs(const precise_float_t& x) { return boost::multiprecision::abs(x); }
+// auto exp2(const precise_float_t& x) { return boost::multiprecision::exp2(x); }
+// auto isnan(const precise_float_t& x) { return boost::multiprecision::isnan(x); }
+// auto isinf(const precise_float_t& x) { return boost::multiprecision::isinf(x); }
+// auto sqrt(const precise_float_t& x) { return boost::multiprecision::sqrt(x); }
+// } // namespace std
+
+// // auto log2(const precise_float_t& x) { return log2q(x); }
+// // auto abs(const precise_float_t& x) { return absq(x); }
+// // auto exp2(const precise_float_t& x) { return exp2q(x); }
+// // auto isnan(const precise_float_t& x) { return isnanq(x); }
+// // auto isinf(const precise_float_t& x) { return isinfq(x); }
+// // auto sqrt(const precise_float_t& x) { return sqrtq(x); }
+
+// #endif
 #endif

@@ -1,9 +1,9 @@
 #pragma once
 
+#include <ndarray/ndarray.hxx> // slice
+
 #include "meta.hxx"
 #include "zip_iterator.hxx"
-// #include "dyn_zip_iterator.hxx"
-#include <ndarray/ndarray.hxx>
 
 #include <memory>
 #include <tuple>
@@ -11,40 +11,24 @@
 
 namespace sd
 {
+
+template <typename T>
+auto make_slice(T& t)
+{
+    // this exists only to make clang happy, gcc can deduce the proper type
+    //  o/w sed 's/sd::make_slice(/sd::slice(/g' -i disc/datatable/data_table.hxx
+    //  disc/storage/Dataset.hxx relaxent/IntersectingFacotorization.hxx
+    return sd::slice<std::remove_reference_t<decltype(*t.data())>, 1>(t.data(), t.size());
+}
+
+template <typename T>
+auto make_cpslice(T& t)
+{
+    return sd::cpslice<std::remove_reference_t<decltype(*t.data())>, 1>(t.data(), t.size());
+}
+
 namespace df
 {
-
-template <typename T, size_t R, typename Alloc = std::allocator<T>>
-struct data_grid : public ndarray<T, R, Alloc>
-{
-    using range       = row_range<T, R>;
-    using const_range = row_range<const T, R>;
-
-    using ndarray<T, R, Alloc>::ndarray;
-
-    auto begin() { range{*this}.begin(); }
-    auto end() { range{*this}.end(); }
-    auto begin() const { const_range{*this}.begin(); }
-    auto end() const { const_range{*this}.end(); }
-    auto rbegin() { range{*this}.rbegin(); }
-    auto rend() { range{*this}.rend(); }
-    auto rbegin() const { const_range{*this}.rbegin(); }
-    auto rend() const { const_range{*this}.rend(); }
-};
-
-template <typename T, typename... Ts>
-class row_store : public ndarray<std::tuple<T, Ts...>, 1, std::allocator<std::tuple<T, Ts...>>>
-{
-    using base = ndarray<std::tuple<T, Ts...>, 1, std::allocator<std::tuple<T, Ts...>>>;
-
-public:
-    using base::base;
-
-    void push_back(T&& t0, Ts&&... ts)
-    {
-        base::push_back(std::forward_as_tuple(std::forward<T>(t0), std::forward<Ts>(ts)...));
-    }
-};
 
 template <typename... Ts>
 struct basic_soa;
@@ -205,89 +189,47 @@ struct basic_column_store : public basic_soa<Ts...>
 {
     using basic_soa<Ts...>::basic_soa;
 
-    // template <typename... Args>
-    // auto cut(Args&&... args)
-    // {
-    //     return this->map_cols([&](auto& col) { return col.cut(std::forward<Args>(args)...);
-    //     });
-    // }
-
-    // template <typename... Args>
-    // auto cut(Args&&... args) const
-    // {
-    //     return this->map_cols(
-    //         [&](const auto& col) { return col.cut(std::forward<Args>(args)...); });
-    // }
-
-    // template <typename... Args>
-    // auto stride(Args&&... args)
-    // {
-    //     return this->map_cols(
-    //         [&](auto& col) { return col.stride(std::forward<Args>(args)...); });
-    // }
-
-    // template <typename... Args>
-    // auto stride(Args&&... args) const
-    // {
-    //     return this->map_cols(
-    //         [&](const auto& col) { return col.stride(std::forward<Args>(args)...); });
-    // }
-
-    // template <size_t... Is>
-    // auto select_columns()
-    // {
-    //     using ret_t = basic_column_store<
-    //         std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>...>;
-    //     return ret_t(std::get<Is>(this->columns).propagate_const()...);
-    // }
-
-    // template <size_t... Is>
-    // auto select_columns() const
-    // {
-    //     using ret_t = basic_column_store<std::add_const_t<
-    //         std::decay_t<decltype(std::get<Is>(this->columns).propagate_const())>>...>;
-    //     return ret_t{{std::get<Is>(this->columns).propagate_const()...}};
-    // }
-
     template <typename... Args>
     auto cut(Args&&... args)
     {
         return this->map_cols(
-            [&](auto& col) { return sd::cpslice(col).cut(std::forward<Args>(args)...); });
+            [&](auto& col) { return sd::make_cpslice(col).cut(std::forward<Args>(args)...); });
     }
 
     template <typename... Args>
     auto cut(Args&&... args) const
     {
-        return this->map_cols(
-            [&](const auto& col) { return sd::slice(col).cut(std::forward<Args>(args)...); });
+        return this->map_cols([&](const auto& col) {
+            return sd::make_slice(col).cut(std::forward<Args>(args)...);
+        });
     }
 
     template <typename... Args>
     auto stride(Args&&... args)
     {
-        return this->map_cols(
-            [&](auto& col) { return sd::cpslice(col).stride(std::forward<Args>(args)...); });
+        return this->map_cols([&](auto& col) {
+            return sd::make_cpslice(col).stride(std::forward<Args>(args)...);
+        });
     }
 
     template <typename... Args>
     auto stride(Args&&... args) const
     {
         return this->map_cols([&](const auto& col) {
-            return sd::slice(col).stride(std::forward<Args>(args)...);
+            return sd::make_slice(col).stride(std::forward<Args>(args)...);
         });
     }
 
     template <size_t... Is>
     auto select_columns()
     {
-        return basic_column_store(sd::cpslice(std::get<Is>(this->columns))...);
+        return basic_column_store(sd::make_cpslice(std::get<Is>(this->columns))...);
     }
 
     template <size_t... Is>
     auto select_columns() const
     {
-        return basic_column_store(sd::slice(std::get<Is>(this->columns)...));
+        return basic_column_store(sd::make_slice(std::get<Is>(this->columns)...));
     }
 
     void reserve(size_t n)
@@ -355,12 +297,21 @@ struct basic_column_store : public basic_soa<Ts...>
 
     void erase_row(size_t row)
     {
-        foreach_col([row](auto& c) { return c.erase(c.begin() + row); });
+        this->foreach_col([row](auto& c) { return c.erase(c.begin() + row); });
     }
 
     void erase_rows(size_t from, size_t to)
     {
-        foreach_col([from, to](auto& c) { return c.erase(c.begin() + from, c.begin() + to); });
+        this->foreach_col(
+            [from, to](auto& c) { return c.erase(c.begin() + from, c.begin() + to); });
+    }
+
+    template <typename Pred>
+    void erase_if(Pred&& pred)
+    {
+        auto it = std::remove_if(this->begin(), this->end(), std::forward<Pred>(pred));
+        auto d  = std::distance(it, this->end());
+        this->foreach_col([d](auto& c) { return c.erase(c.begin() + d, c.end()); });
     }
 
 private:
@@ -393,41 +344,11 @@ private:
     }
 };
 
-// template <typename T, size_t r = 1>
-// struct column_type : public ndarray<T, r>
-// {
-//     using typename ndarray<T, r>::value_type;
-//     using ndarray<T, r>::ndarray;
-// };
-
 template <typename T>
 struct column_type
 {
     using value = std::vector<T>;
 };
-
-template <typename T, size_t r>
-struct col
-{
-};
-
-template <typename T, size_t r>
-struct column_type<col<T, r>>
-{
-    using value = ndarray<T, r>;
-};
-
-// template <typename... Ts>
-// using soa_vector = basic_soa<column_type<Ts>...>;
-
-// template <typename... Ts>
-// using soa_view = basic_soa<cpslice<Ts>...>;
-
-// template <typename... Ts>
-// soa_view<Ts...> view(basic_soa<column_type<Ts>...>& d)
-// {
-//     return soa_view<Ts...>(d);
-// }
 
 template <typename... Ts>
 using col_store = basic_column_store<typename column_type<Ts>::value...>;
@@ -454,3 +375,66 @@ void swap(std::tuple<Ts&...>&& a, std::tuple<Ts&...>&& b)
                             std::index_sequence_for<Ts...>());
 }
 } // namespace std
+
+// template <typename T, size_t r = 1>
+// struct column_type : public ndarray<T, r>
+// {
+//     using typename ndarray<T, r>::value_type;
+//     using ndarray<T, r>::ndarray;
+// };
+
+// template <typename T, size_t r>
+// struct col
+// {
+// };
+
+// template <typename T, size_t r>
+// struct column_type<col<T, r>>
+// {
+//     using value = ndarray<T, r>;
+// };
+
+// template <typename... Ts>
+// using soa_vector = basic_soa<column_type<Ts>...>;
+
+// template <typename... Ts>
+// using soa_view = basic_soa<cpslice<Ts>...>;
+
+// template <typename... Ts>
+// soa_view<Ts...> view(basic_soa<column_type<Ts>...>& d)
+// {
+//     return soa_view<Ts...>(d);
+// }
+
+// template <typename T, typename... Ts>
+// class row_store : public ndarray<std::tuple<T, Ts...>, 1, std::allocator<std::tuple<T,
+// Ts...>>>
+// {
+//     using base = ndarray<std::tuple<T, Ts...>, 1, std::allocator<std::tuple<T, Ts...>>>;
+
+// public:
+//     using base::base;
+
+//     void push_back(T&& t0, Ts&&... ts)
+//     {
+//         base::push_back(std::forward_as_tuple(std::forward<T>(t0), std::forward<Ts>(ts)...));
+//     }
+// };
+
+// template <typename T, size_t R, typename Alloc = std::allocator<T>>
+// struct data_grid : public ndarray<T, R, Alloc>
+// {
+//     using range       = row_range<T, R>;
+//     using const_range = row_range<const T, R>;
+
+//     using ndarray<T, R, Alloc>::ndarray;
+
+//     auto begin() { range{*this}.begin(); }
+//     auto end() { range{*this}.end(); }
+//     auto begin() const { const_range{*this}.begin(); }
+//     auto end() const { const_range{*this}.end(); }
+//     auto rbegin() { range{*this}.rbegin(); }
+//     auto rend() { range{*this}.rend(); }
+//     auto rbegin() const { const_range{*this}.rbegin(); }
+//     auto rend() const { const_range{*this}.rend(); }
+// };

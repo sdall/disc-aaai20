@@ -1,7 +1,6 @@
 #pragma once
 
 #include <bitcontainer/bit_view.hxx>
-#include <containers/small_vector.hxx>
 #include <ndarray/ndarray.hxx>
 
 #include <array>
@@ -49,13 +48,13 @@ struct base_bitset : public sd::bit_view<C>
     {
         this->insert(o);
     }
-    template <typename T>
-    base_bitset& operator=(bit_view<T> const& o)
-    {
-        this->container.clear();
-        this->insert(o.container);
-        return *this;
-    }
+    // template <typename T>
+    // base_bitset& operator=(bit_view<T> const& o)
+    // {
+    //     this->clear();
+    //     this->insert(o);
+    //     return *this;
+    // }
     // template <typename T, typename = std::enable_if_t<std::is_same_v<T, C>>>
     // base_bitset& operator=(bit_view<T> const& o)
     // {
@@ -124,9 +123,27 @@ struct base_bitset : public sd::bit_view<C>
         }
     }
 
+    template <typename S>
+    void assign(S&& rhs)
+    {
+        clear();
+        insert(std::forward<S>(rhs));
+    }
+
+    template <typename IterA, typename IterB>
+    void assign(IterA first, IterB last)
+    {
+        clear();
+        insert(first, last);
+    }
+
     void reserve(size_t i) { resize(i); }
 
-    void   reset() { this->clear(); }
+    void clear()
+    { /*this->reset();*/
+        this->container.clear();
+        this->length_ = 0;
+    }
     bool   test(size_t i) const { return is_subset(i, *this); }
     size_t count() const { return base::count(); }
 
@@ -160,7 +177,5 @@ void intersection(const bit_view<S>& x, const bit_view<T>& y, base_bitset<U>& z)
 
 template <typename T, typename Alloc = std::allocator<T>>
 using dynamic_bitset = base_bitset<std::vector<T, Alloc>>;
-template <typename T, size_t N>
-using hybrid_bitset = base_bitset<sd::small_vector<T, N>>;
 
 } // namespace sd

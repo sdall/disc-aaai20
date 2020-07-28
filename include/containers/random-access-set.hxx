@@ -17,6 +17,7 @@ namespace andres
 // this file is based on randomaccessset.hxx written by Thorsten Beier for OpenGM:
 // http://hci.iwr.uni-heidelberg.de/opengm2/
 // and based on (c) Bjoern Andres ramdom-access-set.hxx
+// https://github.com/bjoern-andres/graph/
 //
 template <class Key, class Comparison = std::less<Key>, class Allocator = std::allocator<Key>>
 class RandomAccessSet
@@ -140,8 +141,8 @@ inline RandomAccessSet<Key, Comparison, Allocator>::RandomAccessSet(
 
 template <class Key, class Comparison, class Allocator>
 inline const typename RandomAccessSet<Key, Comparison, Allocator>::value_type&
-    RandomAccessSet<Key, Comparison, Allocator>::operator[](
-        const typename RandomAccessSet<Key, Comparison, Allocator>::size_type index) const
+RandomAccessSet<Key, Comparison, Allocator>::operator[](
+    const typename RandomAccessSet<Key, Comparison, Allocator>::size_type index) const
 {
     return vector_[index];
 }

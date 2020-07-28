@@ -520,7 +520,7 @@ private:
 
 #ifdef __cpp_deduction_guides
 template <typename... Ts>
-array(const Ts&... ds)->array<std::common_type_t<Ts...>, sizeof...(Ts)>;
+array(const Ts&... ds) -> array<std::common_type_t<Ts...>, sizeof...(Ts)>;
 #endif
 
 #ifdef __cpp_structured_bindings
@@ -757,10 +757,10 @@ private:
 #ifdef __cpp_deduction_guides
 
 template <typename T, size_t R>
-layout(const array<T, R>& a, ...)->layout<R>;
+layout(const array<T, R>& a, ...) -> layout<R>;
 
 template <typename T, size_t R>
-layout(const std::array<T, R>& a, ...)->layout<R>;
+layout(const std::array<T, R>& a, ...) -> layout<R>;
 
 // template <typename T0, typename... T>
 // layout(T0&&, T&&..., ...)->layout<1 + sizeof...(T)>;
@@ -1134,10 +1134,10 @@ public:
         : elems(ptr), geometry(std::move(bounds), std::move(strides))
     {
     }
-    template <typename U>
-    constexpr slice(slice<U, rank> rhs) noexcept : slice(rhs, rhs.shape())
-    {
-    }
+    // template <typename U>
+    // constexpr slice(slice<U, rank> rhs) noexcept : slice(rhs, rhs.shape())
+    // {
+    // }
     template <typename... Is,
               typename = std::enable_if_t<sizeof...(Is) == rank && are_integral<Is...>::value>>
     constexpr slice(extract_ptr v, Is&&... is) noexcept
@@ -1380,8 +1380,8 @@ public:
         return cut(origin, bound).stride(steps);
     }
 
-    constexpr slice<T, rank> cut(const index_type& origin, const index_type& bound) const
-        noexcept
+    constexpr slice<T, rank> cut(const index_type& origin,
+                                 const index_type& bound) const noexcept
     {
         sd_expect(bound <= extents());
         sd_expect(origin <= bound);
@@ -1401,8 +1401,8 @@ public:
             .stride(steps);
     }
 
-    constexpr slice<T, rank> subspan(const sindex_type& origin, const sindex_type& bound) const
-        noexcept
+    constexpr slice<T, rank> subspan(const sindex_type& origin,
+                                     const sindex_type& bound) const noexcept
     {
         // return {elems + geometry.linearize(origin), subspan_index_to_cut_index(bound)};
         return cut(subspan_index_to_cut_index(origin), subspan_index_to_cut_index(bound));
@@ -1555,7 +1555,7 @@ public:
         return (*m_view)[*m_iter];
     }
     constexpr decltype(auto) operator*() const noexcept { return (*m_view)[*m_iter]; }
-    constexpr auto           operator-> () noexcept { return &(*m_view)[*m_iter]; }
+    constexpr auto           operator->() noexcept { return &(*m_view)[*m_iter]; }
 
     constexpr basic_slice_iterator& operator++() noexcept
     {
@@ -1676,29 +1676,29 @@ private:
 namespace sd
 {
 template <typename V, typename = std::enable_if_t<is_viewable<V>::value>>
-slice(V&& v)->slice<std::remove_reference_t<decltype(*v.data())>, 1>;
+slice(V&& v) -> slice<std::remove_reference_t<decltype(*v.data())>, 1>;
 
 template <typename V, size_t R, typename = std::enable_if_t<is_viewable<V>::value>>
-slice(V&& v, array<size_t, R> i, ...)->slice<std::remove_reference_t<decltype(*v.data())>, R>;
+slice(V&& v, array<size_t, R> i, ...) -> slice<std::remove_reference_t<decltype(*v.data())>, R>;
 
 template <typename V, size_t R>
-slice(V* v, array<size_t, R> i, ...)->slice<std::remove_reference_t<V>, R>;
+slice(V* v, array<size_t, R> i, ...) -> slice<std::remove_reference_t<V>, R>;
 
 template <typename V, size_t R, typename = std::enable_if_t<is_viewable<V>::value>>
-slice(V&& v, layout<R> geo)->slice<std::remove_reference_t<decltype(*v.data())>, R>;
+slice(V&& v, layout<R> geo) -> slice<std::remove_reference_t<decltype(*v.data())>, R>;
 
 template <typename V, size_t R>
-slice(V* v, layout<R> geo)->slice<std::remove_reference_t<V>, R>;
+slice(V* v, layout<R> geo) -> slice<std::remove_reference_t<V>, R>;
 
 template <typename V,
           typename... Is,
           typename = std::enable_if_t<are_integral<Is...>::value && sizeof...(Is) != 0>>
-slice(V* ptr, Is&&... is)->slice<std::remove_reference_t<V>, sizeof...(Is)>;
+slice(V* ptr, Is&&... is) -> slice<std::remove_reference_t<V>, sizeof...(Is)>;
 
 template <typename V,
           typename... Is,
           typename = std::enable_if_t<are_integral<Is...>::value && sizeof...(Is) != 0>>
-slice(V&& v, Is&&... is)->slice<std::remove_reference_t<decltype(*v.data())>, sizeof...(Is)>;
+slice(V&& v, Is&&... is) -> slice<std::remove_reference_t<decltype(*v.data())>, sizeof...(Is)>;
 } // namespace sd
 #endif
 #endif
@@ -1725,7 +1725,8 @@ public:
     using pointer         = typename view_type::pointer;
     using sindex_type     = typename view_type::sindex_type;
 
-    union storage_type {
+    union storage_type
+    {
         view_type       view{};
         const_view_type view_const;
     } storage{};
@@ -1915,37 +1916,37 @@ constexpr decltype(auto) empty(const sd::cpslice<T, r>& s)
 namespace sd
 {
 template <typename T, size_t R>
-cpslice(sd::slice<T, R>& x)->cpslice<T, R>;
+cpslice(sd::slice<T, R>& x) -> cpslice<T, R>;
 
 template <typename T, size_t R>
-cpslice(const sd::slice<T, R>& x)->cpslice<const T, R>;
+cpslice(const sd::slice<T, R>& x) -> cpslice<const T, R>;
 
 template <typename V, typename = std::enable_if_t<is_viewable<V>::value>>
-cpslice(V&& v)->cpslice<std::remove_reference_t<decltype(*v.data())>, 1>;
+cpslice(V&& v) -> cpslice<std::remove_reference_t<decltype(*v.data())>, 1>;
 
 template <typename V, size_t R, typename = std::enable_if_t<is_viewable<V>::value>>
 cpslice(V&& v, array<size_t, R> i, ...)
-    ->cpslice<std::remove_reference_t<decltype(*v.data())>, R>;
+    -> cpslice<std::remove_reference_t<decltype(*v.data())>, R>;
 
 template <typename V, size_t R>
-cpslice(V* v, array<size_t, R> i, ...)->cpslice<std::remove_reference_t<V>, R>;
+cpslice(V* v, array<size_t, R> i, ...) -> cpslice<std::remove_reference_t<V>, R>;
 
 template <typename V, size_t R, typename = std::enable_if_t<is_viewable<V>::value>>
-cpslice(V&& v, layout<R> geo)->cpslice<std::remove_reference_t<decltype(*v.data())>, R>;
+cpslice(V&& v, layout<R> geo) -> cpslice<std::remove_reference_t<decltype(*v.data())>, R>;
 
 template <typename V, size_t R>
-cpslice(V* v, layout<R> geo)->cpslice<std::remove_reference_t<V>, R>;
+cpslice(V* v, layout<R> geo) -> cpslice<std::remove_reference_t<V>, R>;
 
 template <typename V,
           typename... Is,
           typename = std::enable_if_t<are_integral<Is...>::value && sizeof...(Is) != 0>>
-cpslice(V* ptr, Is&&... is)->cpslice<std::remove_reference_t<V>, sizeof...(Is)>;
+cpslice(V* ptr, Is&&... is) -> cpslice<std::remove_reference_t<V>, sizeof...(Is)>;
 
 template <typename V,
           typename... Is,
           typename = std::enable_if_t<are_integral<Is...>::value && sizeof...(Is) != 0>>
 cpslice(V&& v, Is&&... is)
-    ->cpslice<std::remove_reference_t<decltype(*v.data())>, sizeof...(Is)>;
+    -> cpslice<std::remove_reference_t<decltype(*v.data())>, sizeof...(Is)>;
 } // namespace sd
 #endif
 
@@ -2910,24 +2911,24 @@ private:
 template <typename T,
           typename... Is,
           typename = std::enable_if_t<sizeof...(Is) != 0 && are_integral<Is...>::value>>
-ndarray(const T& init, Is&&... is)->ndarray<T, sizeof...(Is), std::allocator<T>>;
+ndarray(const T& init, Is&&... is) -> ndarray<T, sizeof...(Is), std::allocator<T>>;
 
 template <typename U, size_t R>
 ndarray(const slice<U, R>& a)
-    ->ndarray<std::remove_reference_t<std::remove_cv_t<U>>,
-              R,
-              std::allocator<std::remove_reference_t<std::remove_cv_t<U>>>>;
+    -> ndarray<std::remove_reference_t<std::remove_cv_t<U>>,
+               R,
+               std::allocator<std::remove_reference_t<std::remove_cv_t<U>>>>;
 
 template <typename U, size_t R>
 ndarray(const cpslice<U, R>& a)
-    ->ndarray<std::remove_reference_t<std::remove_cv_t<U>>,
-              R,
-              std::allocator<std::remove_reference_t<std::remove_cv_t<U>>>>;
+    -> ndarray<std::remove_reference_t<std::remove_cv_t<U>>,
+               R,
+               std::allocator<std::remove_reference_t<std::remove_cv_t<U>>>>;
 
 #if defined(MARRAY_WITH_COMPONENTWISE_MATH)
 template <typename... Ts>
 ndarray(const lazy_function<Ts...>&)
-    ->ndarray<typename lazy_function<Ts...>::value_type, lazy_function<Ts...>::rank>;
+    -> ndarray<typename lazy_function<Ts...>::value_type, lazy_function<Ts...>::rank>;
 #endif
 #endif
 
@@ -3033,7 +3034,7 @@ public:
     operator difference_type() const { return row; }
 
     auto operator*() const { return data[row]; }
-    auto operator-> () const { return data[row].data(); }
+    auto operator->() const { return data[row].data(); }
     auto operator[](difference_type r) const { return data[r]; }
 
     auto operator++()

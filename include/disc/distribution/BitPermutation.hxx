@@ -90,7 +90,7 @@ void permute_first_n(size_t n, size_t first_n, Fn&& fn)
 }
 
 template <typename Fn>
-void iterate_over(size_t i, Fn&& fn)
+void foreach(size_t i, Fn&& fn)
 {
     size_t one = 1;
     for (size_t j = 0, l = i; l != 0; ++j, l >>= one)

@@ -31,14 +31,16 @@ public:
 
     auto operator*()
     {
-        return map_tuple(zipped, [](auto& iter) -> auto& { return *iter; });
+        return map_tuple(
+            zipped, [](auto& iter) -> auto& { return *iter; });
     }
     auto operator*() const
     {
-        return map_tuple(zipped, [](const auto& iter) -> const auto& { return *iter; });
+        return map_tuple(
+            zipped, [](const auto& iter) -> const auto& { return *iter; });
     }
 
-    auto operator-> () const { return arrow_proxy(this->operator*()); }
+    auto operator->() const { return arrow_proxy(this->operator*()); }
 
     zip_iterator& operator++()
     {

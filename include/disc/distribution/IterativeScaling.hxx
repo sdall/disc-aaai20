@@ -14,11 +14,11 @@ namespace viva
 template <typename float_type>
 struct IterativeScalingSettings
 {
-    float_type sensitivity   = 1e-15;
-    float_type epsilon       = 1e-18;
-    size_t     max_iteration = 200;
+    float_type sensitivity   = 1e-8;
+    float_type epsilon       = 1e-10;
+    size_t     max_iteration = 100;
     bool       warmstart     = false;
-    bool       normalize     = false;
+    // bool       normalize     = false;
 };
 
 template <typename T>
@@ -40,20 +40,19 @@ void update_precomputed_probabilities(model_type& model, [[maybe_unused]] const 
 {
     for (size_t i = 0; i < model.size(); ++i)
     {
-        model.probability(i) = expected_frequency_known(t[i], model, model.point(i));
+        model.probability(i) = expectation_known(t[i], model, model.point(i));
     }
 }
 
 template <typename U, typename V>
-void reset_normalizer(MultiModel<U, V>& model)
+void reset_normalizer(MaxEntFactor<U, V>& model)
 {
     model.singletons.theta0 = 1;
-    // model.itemsets.theta0   = 1;
-    model.itemsets.theta0 = std::exp2(-V(dimension_of_factor(model)));
+    model.itemsets.theta0   = std::exp2(-V(dimension_of_factor(model)));
 }
 
 template <typename U, typename V>
-void reset_coefficients(MultiModel<U, V>& model)
+void reset_coefficients(MaxEntFactor<U, V>& model)
 {
     for (auto& x : model.itemsets.set)
         x.theta = x.frequency;
@@ -66,11 +65,11 @@ template <typename Model, typename Transactions, typename AllTransactions, typen
 auto iterative_scaling(Model&                           model,
                        const std::vector<Transactions>& transactions,
                        const AllTransactions&,
-                       IterativeScalingSettings<F> options)
+                       IterativeScalingSettings<F> opts)
 {
     using float_type = typename Model::float_type;
 
-    if (!options.warmstart)
+    if (!opts.warmstart)
     {
         reset_coefficients(model);
     }
@@ -79,24 +78,21 @@ auto iterative_scaling(Model&                           model,
         reset_normalizer(model);
     }
 
-    float_type last_dif = std::numeric_limits<float_type>::max();
+    float_type pg = std::numeric_limits<float_type>::max();
 
-    for (size_t it = 0; it < options.max_iteration; ++it)
+    for (size_t it = 0; it < opts.max_iteration; ++it)
     {
-        // if (options.normalize && !all_transactions.empty())
-        //     normalize(model, model.normalizer(), all_transactions);
-
-        float_type dif = 0;
+        float_type g = 0;
 
         for (size_t i = 0; i < model.size(); ++i)
         {
-            auto q = model.frequency(i);
-            auto p = expected_frequency_known(transactions[i], model, model.point(i));
+            auto q               = model.frequency(i);
+            auto p               = expectation_known(transactions[i], model, model.point(i));
             model.probability(i) = p;
 
-            dif += std::abs(q - p);
+            g += std::abs(q - p);
 
-            if (std::abs(q - p) < options.sensitivity)
+            if (std::abs(q - p) < opts.sensitivity)
                 continue;
             if (bad_scaling_factor(p, q, model.coefficient(i)))
                 continue;
@@ -106,46 +102,63 @@ auto iterative_scaling(Model&                           model,
             // model.normalizer() *= (1 - q) / (1 - p);
         }
 
-        if (dif < options.sensitivity || std::abs(dif - last_dif) < options.epsilon)
+        if (g / model.size() < opts.sensitivity || std::abs(g - pg) < opts.epsilon)
         {
-            last_dif = dif;
+            pg = g;
             break;
         }
 
-        last_dif = dif;
+        pg = g;
     }
-
-    // if (options.normalize && !all_transactions.empty())
-    //     normalize(model, model.normalizer(), all_transactions);
-
-    return last_dif;
+    return pg;
 }
 
-template <typename Model, typename T = double>
-auto estimate_model(Model& m, IterativeScalingSettings<T> const& opts = {})
+template <typename S, typename T, typename U = double>
+auto estimate_model(MaxEntFactor<S, T>& m, IterativeScalingSettings<U> const& opts = {})
 {
-    using float_type   = typename Model::float_type;
-    using pattern_type = typename Model::pattern_type;
+    using float_type   = typename MaxEntFactor<S, T>::float_type;
+    using pattern_type = typename MaxEntFactor<S, T>::pattern_type;
+    using block_t      = Block<pattern_type, float_type>;
 
-    using block_t = Block<pattern_type, float_type>;
+    assert(m.size() > 0);
 
-    std::vector<std::vector<block_t>> t(m.size());
-
-    // compute_transactions(m, m.point(i), m.is_pattern_known(i),  m.itemsets.partitions);
+    thread_local std::vector<std::vector<block_t>> t;
+    thread_local std::vector<block_t>              partitions;
 
     m.itemsets.num_singletons = m.singletons.set.size();
-    m.itemsets.update_partitions();
+
+    const bool use_one_set = false && m.singletons.set.size() < m.itemsets.set.size();
+    if (use_one_set)
+    {
+        auto n = compute_counts(m.itemsets.num_singletons, m.singletons, partitions);
+        partitions.resize(n);
+    }
+    else
+    {
+        partitions.clear();
+    }
+
+    t.resize(m.size());
 
     // #pragma omp parallel for shared(t) if (m.size() > 16)
     for (size_t i = 0; i < m.size(); ++i)
     {
         if (m.is_pattern_known(i))
         {
-            t[i] = m.itemsets.partitions;
+            if (use_one_set && !partitions.empty())
+            {
+                t[i] = partitions;
+            }
+            else
+            {
+                auto n = compute_transactions(m, m.point(i), true, t[i]);
+                t[i].resize(n);
+            }
         }
         else
         {
-            compute_transactions(m, m.point(i), false, t[i]);
+            auto n = compute_transactions(m, m.point(i), false, t[i]);
+            t[i].resize(n);
         }
 
         auto it = std::remove_if(t[i].begin(), t[i].end(), [&](const auto& x) {
@@ -154,21 +167,15 @@ auto estimate_model(Model& m, IterativeScalingSettings<T> const& opts = {})
         t[i].erase(it, t[i].end());
     }
 
-    std::vector<block_t> all;
-    if (opts.normalize)
-    {
-        all = m.itemsets.partitions;
-    }
-
-    const auto dif = iterative_scaling(m, t, all, opts);
+    const auto g = iterative_scaling(m, t, partitions, opts);
 
     update_precomputed_probabilities(m, t);
 
-    return dif;
+    return g;
 }
 
 template <typename U, typename V, typename W, typename F = double>
-void estimate_model(FactorizedModel<U, V, W>& m, IterativeScalingSettings<F> const& opts = {})
+void estimate_model(StaticFactorModel<U, V, W>& m, IterativeScalingSettings<F> const& opts = {})
 {
 #pragma omp parallel for
     for (size_t i = 0; i < m.factors.size(); ++i)

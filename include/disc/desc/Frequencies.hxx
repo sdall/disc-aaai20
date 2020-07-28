@@ -1,8 +1,8 @@
 #pragma once
 
-#include <disc/disc/Composition.hxx>
+#include <disc/desc/Composition.hxx>
+#include <disc/desc/Support.hxx>
 #include <disc/storage/Dataset.hxx>
-#include <disc/utilities/Support.hxx>
 #include <ndarray/ndarray.hxx>
 
 namespace sd

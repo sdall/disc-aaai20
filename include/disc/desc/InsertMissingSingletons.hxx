@@ -17,7 +17,7 @@ std::vector<size_t> compute_singleton_supports(size_t dim, const DataType& data)
     for (size_t i = 0; i < data.size(); ++i)
     {
         assert(i < data.size());
-        iterate_over(data.point(i), [&](auto j) {
+        foreach(data.point(i), [&](auto j) {
             assert(j < dim);
             support[j]++;
         });
@@ -30,11 +30,11 @@ void insert_missing_singletons(const DataType& data, ItemsetType& summary)
 {
     using value_type = typename ItemsetType::label_type;
 
-    itemset<tag_dense> set(data.dim);
+    itemset<tag_dense> set(std::max(data.dim, summary.dim));
 
     for (const auto& x : summary)
         if (is_singleton(point(x)))
-            set.set(front(point(x)), 1);
+            set.insert(front(point(x)));
 
     if (set.count() == data.dim)
     {

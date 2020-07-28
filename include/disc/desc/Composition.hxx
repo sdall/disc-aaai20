@@ -3,7 +3,7 @@
 #include <disc/storage/Dataset.hxx>
 #include <ndarray/ndarray.hxx>
 
-#include <disc/disc/Settings.hxx>
+#include <disc/desc/Settings.hxx>
 #include <disc/distribution/Distribution.hxx>
 
 namespace sd
@@ -12,7 +12,6 @@ namespace disc
 {
 
 using AssignmentMatrix = std::vector<sparse_dynamic_bitset<size_t>>;
-
 size_t trace(const AssignmentMatrix& a)
 {
     return std::accumulate(
@@ -36,7 +35,7 @@ struct Trait
     using size_type         = size_t;
 };
 
-using DefaultTrait = Trait<tag_dense, double, MEDistribution<tag_dense, double>>;
+using DefaultTrait = Trait<tag_dense, double, MaxEntDistribution<tag_dense, double>>;
 
 template <typename Trait>
 struct Composition
@@ -70,10 +69,34 @@ bool check_invariant(const Composition<T>& comp)
 }
 
 template <typename S>
-auto make_distribution(S const& c, MiningSettings const& cfg)
+auto make_distribution(S const& c, Config const& cfg)
 {
     using distribution_type = typename S::distribution_type;
     return distribution_type(c.data.dim, c.data.size(), cfg);
+}
+
+template <typename Trait>
+auto construct_component_masks(const Composition<Trait>& c)
+{
+    using tid_container = long_storage_container<typename Trait::pattern_type>;
+
+    assert(check_invariant(c));
+
+    std::vector<tid_container> masks;
+    masks.reserve(16);
+    if (c.data.size() > 1)
+    {
+        masks.resize(c.data.num_components(), tid_container{c.data.size()});
+        for (size_t s = 0, row = 0, n = c.data.num_components(); s < n; ++s)
+        {
+            for ([[maybe_unused]] const auto& x : c.data.subset(s))
+            {
+                masks[s].insert(row);
+                ++row;
+            }
+        }
+    }
+    return masks;
 }
 
 } // namespace disc

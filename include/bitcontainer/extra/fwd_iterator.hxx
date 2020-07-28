@@ -103,14 +103,14 @@ bit_view_fwd_iterator_sentinel end(const bit_view<S>&)
 // }
 
 template <typename S>
-decltype(auto) begin(sparse_bit_view<S>& s)
+decltype(auto) begin(const sparse_bit_view<S>& s)
 {
     using std::begin;
     return begin(s.container);
 }
 
 template <typename S>
-decltype(auto) end(sparse_bit_view<S>& s)
+decltype(auto) end(const sparse_bit_view<S>& s)
 {
     using std::end;
     return end(s.container);

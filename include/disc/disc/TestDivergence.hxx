@@ -21,54 +21,43 @@ T js1(const T& p, const T& q) noexcept
     return m < T(1e-15) ? T(0) : (kl1(p, m) + kl1(q, m)) / T(2);
 }
 
-double chi_squared_value(size_t degrees_of_freedom, double pvalue = 0.05)
+double chi_squared_value(double pvalue, size_t dof)
 {
     namespace bm = boost::math;
-    bm::chi_squared chi(degrees_of_freedom);
+    bm::chi_squared chi(dof);
     return bm::quantile(bm::complement(chi, pvalue));
 }
 
 template <typename T>
-T chi_squared_pvalue(size_t degrees_of_freedom, const T& p)
+T chi_squared_pvalue(const T& p, size_t dof)
 {
     namespace bm = boost::math;
-    bm::chi_squared chi(degrees_of_freedom);
+    bm::chi_squared chi(dof);
     return bm::cdf(chi, p);
 }
 
 template <typename T>
-std::pair<T, T>
-chi_squared_confidence_interval(size_t degrees_of_freedom, const T& sd, const T& alpha)
+std::pair<T, T> chi_squared_confidence_interval(const T& sd, const T& alpha, size_t dof)
 {
     namespace bm = boost::math;
     using namespace boost::math;
 
-    bm::chi_squared chi(degrees_of_freedom - 1);
+    bm::chi_squared chi(dof);
 
-    T lower_limit =
-        sqrt((degrees_of_freedom - 1) * sd * sd / bm::quantile(bm::complement(chi, alpha / 2)));
-    T upper_limit = sqrt((degrees_of_freedom - 1) * sd * sd / bm::quantile(chi, alpha / 2));
+    auto dofsd2 = dof * sd * sd;
+
+    T lower_limit = sqrt(dofsd2 / bm::quantile(bm::complement(chi, alpha / 2)));
+    T upper_limit = sqrt(dofsd2 / bm::quantile(chi, alpha / 2));
 
     return {lower_limit, upper_limit};
 }
 
-template <typename T>
-auto js_divergence_sd(sd::slice<T> first, sd::slice<T> second, size_t ignored_index)
-{
-    IncrementalDescription<T> stat;
-    for (size_t i = 0; i < first.size(); ++i)
-    {
-        if (i != ignored_index)
-            stat += js1(first[i], second[i]);
-    }
-    return stat;
-}
-
+// to test if p is differently distributed from p', it is sufficient to compare \poly and \poly'
 template <typename Trait>
-auto js_fr_divergence_sd(const Composition<Trait>& c,
-                         size_t                    first_index,
-                         size_t                    second_index,
-                         std::optional<size_t>     x_index = std::nullopt)
+auto js_divergence(const Composition<Trait>& c,
+                   size_t                    first_index,
+                   size_t                    second_index,
+                   std::optional<size_t>     x_index = std::nullopt)
 {
     using float_t = typename Composition<Trait>::float_type;
 
@@ -76,9 +65,8 @@ auto js_fr_divergence_sd(const Composition<Trait>& c,
 
     for (size_t i = 0; i < c.summary.size(); ++i)
     {
-        if (x_index && i == *x_index)
-            continue;
-        stat += js1(c.frequency(i, first_index), c.frequency(i, second_index));
+        if (x_index && i != *x_index)
+            stat += js1(c.frequency(i, first_index), c.frequency(i, second_index));
     }
 
     return std::make_pair(stat.sum(), stat.sd());
@@ -104,7 +92,7 @@ auto test_stat_divergence(const Composition<Trait>& c,
         return false;
     }
 
-    auto [js, sd] = js_fr_divergence_sd(c, first_index, second_index, x_index);
+    auto [js, sd] = js_divergence(c, first_index, second_index, x_index);
 
     if (std::isnan(js) || std::isinf(js))
     {
@@ -112,13 +100,12 @@ auto test_stat_divergence(const Composition<Trait>& c,
     }
 
     const size_t n    = c.data.subset(first_index).size() + c.data.subset(second_index).size();
-    const size_t m    = c.summary.size() - x_index.has_value();
-    const auto   pval = chi_squared_pvalue(m - 1, 2 * n * js);
-    const auto   ci   = chi_squared_confidence_interval(n, sd, alpha);
+    const size_t dof  = c.summary.size() - x_index.has_value() - 1;
+    const auto   div  = 2 * n * js;
+    const auto   pval = chi_squared_pvalue(div, dof);
+    const auto   ci   = chi_squared_confidence_interval(sd, alpha, dof);
 
-    const bool is_significant = pval >= (T(1) - alpha) && (ci.first <= sd && sd <= ci.second);
-
-    return is_significant;
+    return pval >= (T(1) - alpha) && (ci.first <= sd && sd <= ci.second);
 }
 
 } // namespace sd::disc

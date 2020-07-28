@@ -9,7 +9,7 @@
 #include <limits>     // char_bit
 #include <numeric>    // inner_product
 
-// #include <boost/dynamic_bitset.hpp>
+// #include <bit> // std::popcount
 
 namespace sd
 {
@@ -87,8 +87,8 @@ struct bit_view
     void reset() { std::fill_n(container.begin(), container.size(), block_type()); }
     void clear() { reset(); }
 
-    size_type length() const { return length_; }
     size_type count() const { return popcnt(container.data(), bytes_per_block * num_blocks()); }
+    size_type length() const { return length_; }
     bool      empty() const { return length() == 0 || count() == 0; }
     size_type num_blocks() const { return container.size(); }
 
@@ -166,6 +166,15 @@ struct bit_view
     size_type      length_   = 0;
 };
 
+template <typename S>
+void swap(bit_view<S>& a, bit_view<S>& b)
+{
+    using std::swap;
+
+    swap(a.container, b.container);
+    swap(a.length_, b.length_);
+}
+
 template <typename S, typename T>
 auto operator&(const bit_view<S>& lhs, const bit_view<S>& rhs)
 {
@@ -233,7 +242,7 @@ std::size_t last_entry(const bit_view<S>& s)
 }
 
 template <typename S, typename T>
-size_t largest_block(const bit_view<S>& s, const bit_view<T>& t)
+size_t largest_common_block(const bit_view<S>& s, const bit_view<T>& t)
 {
     return std::min(s.container.size(), t.container.size());
     // return std::min({s.container.size(), t.container.size(), s.highest_used_block() + 1,
@@ -257,7 +266,7 @@ bool is_subset(const bit_view<S>& s, const bit_view<T>& t)
 
     const auto& a = s.container;
     const auto& b = t.container;
-    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
+    for (size_t i = 0, n = largest_common_block(s, t); i < n; ++i)
     {
         if ((a[i] & ~b[i]))
             return false;
@@ -291,7 +300,7 @@ bool intersects(const bit_view<S>& s, const bit_view<T>& t)
 {
     const auto& a = s.container;
     const auto& b = t.container;
-    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
+    for (size_t i = 0, n = largest_common_block(s, t); i < n; ++i)
     {
         if ((a[i] & b[i]))
             return true;
@@ -304,7 +313,7 @@ void intersection(const bit_view<S>& s, bit_view<T>& t)
 {
     const auto&  a = s.container;
     auto&        b = t.container;
-    const size_t m = largest_block(s, t);
+    const size_t m = largest_common_block(s, t);
     for (size_t i = 0; i < m; ++i)
     {
         b[i] &= a[i];
@@ -343,13 +352,10 @@ auto size_of_intersection(const bit_view<S>& s, const bit_view<T>& t) -> uint64_
 template <typename S, typename T>
 bool equal(const bit_view<S>& s, const bit_view<T>& t)
 {
-    if (s.count() != t.count())
-        return false;
-
     const auto& a = s.container;
     const auto& b = t.container;
-    //
-    for (size_t i = 0, n = largest_block(s, t); i < n; ++i)
+
+    for (size_t i = 0, n = largest_common_block(s, t); i < n; ++i)
     {
         if ((a[i] != b[i]))
             return false;
@@ -382,7 +388,7 @@ bool equal(const bit_view<S>& s, const bit_view<T>& t)
 // }
 
 template <typename S, typename Fn>
-void iterate_over(const bit_view<S>& s, Fn&& fn)
+void foreach(const bit_view<S>& s, Fn&& fn)
 {
     size_t offset = 0;
     for (auto x : s.container)
@@ -408,7 +414,7 @@ void setminus(bit_view<S>& s, const bit_view<T>& t)
 {
     const auto& a  = t.container;
     auto&       b  = s.container;
-    const auto  ub = largest_block(s, t);
+    const auto  ub = largest_common_block(s, t);
     for (size_t i = 0; i < ub; ++i)
     {
         b[i] &= ~(a[i] & b[i]);

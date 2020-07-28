@@ -1,6 +1,7 @@
 #pragma once
 
-#include <disc/distribution/MultiModel.hxx>
+#include <disc/distribution/FactorPruning.hxx>
+#include <disc/distribution/MaxEntFactor.hxx>
 #include <disc/storage/Itemset.hxx>
 
 #ifndef NDEBUG
@@ -12,8 +13,29 @@ namespace sd
 namespace viva
 {
 
-template <typename U, typename V, typename Underlying_Factor_Type = MultiModel<U, V>>
-struct FactorizedModel
+template <typename Underlying_Factor_Type>
+struct Factor
+{
+    using pattern_type = typename Underlying_Factor_Type::pattern_type;
+    explicit Factor(size_t dim) : factor(dim) { range.reserve(dim); }
+    sd::disc::itemset<pattern_type> range;
+    Underlying_Factor_Type          factor;
+};
+
+template <typename U>
+void join_factors(Factor<U>& f, const Factor<U>& g)
+{
+    for (auto& t : g.factor.itemsets.set)
+        f.factor.insert_pattern(t.frequency, t.point);
+
+    for (auto& t : g.factor.singletons.set)
+        f.factor.insert_singleton(t.frequency, t.element);
+
+    f.range.insert(g.range);
+}
+
+template <typename U, typename V, typename Underlying_Factor_Type = MaxEntFactor<U, V>>
+struct StaticFactorModel
 {
     using float_type            = V;
     using value_type            = V;
@@ -21,21 +43,17 @@ struct FactorizedModel
     using index_type            = std::size_t;
     using underlying_model_type = Underlying_Factor_Type;
     // using cache_type            = Cache<U, V>;
+    using factor_type = Factor<underlying_model_type>;
 
-    struct factor_type
-    {
-        explicit factor_type(size_t dim) : factor(dim) { range.reserve(dim); }
-        sd::disc::itemset<U>  range;
-        underlying_model_type factor;
-    };
+    constexpr static bool enable_factor_pruning = true;
 
-    explicit FactorizedModel(size_t dim) : dim(dim) { init(dim); }
-    FactorizedModel() = default;
+    explicit StaticFactorModel(size_t dim) : dim(dim) { init(dim); }
+    StaticFactorModel() = default;
 
     size_t dim              = 0;
     size_t count_sets       = 0;
-    size_t max_num_itemsets = 5;
-    size_t max_range_size   = 8;
+    size_t max_factor_size  = 5;
+    size_t max_factor_width = 8;
 
     std::vector<factor_type> factors;
 
@@ -49,7 +67,6 @@ struct FactorizedModel
         factors.clear();
         factors.resize(dim, factor_type(dim));
 
-        // #pragma omp parallel for
         for (size_t i = 0; i < dim; ++i)
         {
             factors[i].range.insert(i);
@@ -62,19 +79,25 @@ struct FactorizedModel
 
     void insert_singleton(value_type frequency, const index_type element, bool estimate = false)
     {
-        size_t index = 0;
+        bool add_new = true;
         for (auto& f : factors)
         {
             if (is_subset(element, f.range))
             {
                 f.factor.insert_singleton(frequency, element, estimate);
-                return;
+                if (is_singleton(f.range))
+                {
+                    add_new = false;
+                }
             }
-            index++;
         }
-        auto& f = factors.emplace_back(dim);
-        f.range.insert(element);
-        f.factor.insert_singleton(frequency, element, estimate);
+
+        if (add_new)
+        {
+            auto& f = factors.emplace_back(dim);
+            f.range.insert(element);
+            f.factor.insert_singleton(frequency, element, estimate);
+        }
     }
 
     template <typename T>
@@ -83,14 +106,23 @@ struct FactorizedModel
         insert_singleton(frequency, static_cast<index_type>(front(t)), estimate);
     }
 
-    // void insert_singleton(const size_t element) { insert_singleton(0.5, element); }
+    void prune_factor_if(factor_type& f, size_t max_factor_size)
+    {
+        if constexpr (enable_factor_pruning)
+        {
+            if (f.factor.itemsets.set.size() > 3)
+            {
+                prune_factor(f, max_factor_size, true);
+            }
+        }
+    }
 
     template <typename T>
     void insert_pattern(value_type frequency,
                         const T&   t,
-                        size_t     max_num_itemsets,
-                        size_t /*max_range_size*/,
-                        bool estimate)
+                        size_t     max_factor_size,
+                        size_t     max_factor_width,
+                        bool       estimate)
     {
         std::vector<size_t> selection;
         selection.reserve(count(t));
@@ -100,8 +132,12 @@ struct FactorizedModel
             auto& f = factors[i];
             if (is_subset(t, f.range))
             {
-                if (f.factor.itemsets.set.size() < max_num_itemsets)
+                if (f.factor.itemsets.set.size() < max_factor_size)
                 {
+                    if (estimate)
+                    {
+                        prune_factor_if(f, max_factor_size);
+                    }
                     f.factor.insert(frequency, t, estimate);
                 }
                 return;
@@ -121,19 +157,22 @@ struct FactorizedModel
         {
             join_factors(next, factors[s]);
         }
-        next.factor.insert(frequency, t);
 
         if (estimate)
-            estimate_model(next.factor);
+        {
+            prune_factor_if(next, max_factor_size);
+        }
 
-        if (count(next.range) > max_range_size ||
-            next.factor.itemsets.set.size() > max_num_itemsets)
+        if (count(next.range) > max_factor_width ||
+            next.factor.itemsets.set.size() > max_factor_size)
         {
             // #ifndef NDEBUG
             //             throw std::domain_error{"pattern too large or factor is full"};
             // #endif
             return;
         }
+
+        next.factor.insert(frequency, t, estimate);
 
         for (auto i : selection)
         {
@@ -150,7 +189,7 @@ struct FactorizedModel
     template <typename T>
     void insert_pattern(value_type frequency, const T& t, bool estimate = false)
     {
-        insert_pattern(frequency, t, max_num_itemsets, max_range_size, estimate);
+        insert_pattern(frequency, t, max_factor_size, max_factor_width, estimate);
     }
 
     template <typename T>
@@ -172,7 +211,7 @@ struct FactorizedModel
     }
 
     template <typename T>
-    bool is_pattern_feasible(const T& t, size_t max_num_itemsets, size_t max_range_size) const
+    bool is_allowed(const T& t, size_t max_factor_size, size_t max_factor_width) const
     {
         size_t total_size  = 0;
         size_t total_width = 0;
@@ -180,14 +219,14 @@ struct FactorizedModel
         {
             if (is_subset(t, f.range))
             {
-                return f.factor.itemsets.set.size() < max_num_itemsets;
+                return f.factor.itemsets.set.size() < max_factor_size;
             }
             if (intersects(t, f.range))
             {
                 // this works, because all factors are covering disjoint sets
                 total_size += f.factor.itemsets.set.size();
                 total_width += count(f.range);
-                if (total_size >= max_num_itemsets || total_width >= max_range_size)
+                if (total_size >= max_factor_size || total_width >= max_factor_width)
                     return false;
             }
         }
@@ -196,20 +235,9 @@ struct FactorizedModel
     }
 
     template <typename T>
-    bool is_pattern_feasible(const T& t) const
+    bool is_allowed(const T& t) const
     {
-        return is_pattern_feasible(t, max_num_itemsets, max_range_size);
-    }
-
-    static void join_factors(factor_type& f, const factor_type& g)
-    {
-        for (auto& t : g.factor.itemsets.set)
-            f.factor.insert(t.frequency, t.point);
-
-        for (auto& t : g.factor.singletons.set)
-            f.factor.insert_singleton(t.frequency, t.element);
-
-        f.range.insert(g.range);
+        return is_allowed(t, max_factor_size, max_factor_width);
     }
 
     underlying_model_type as_single_factor() const
@@ -224,18 +252,26 @@ struct FactorizedModel
 
     void erase_empty_factors()
     {
-        for (size_t i = 0; i < factors.size();)
-        {
-            if (factors[i].range.empty())
-            {
-                std::swap(factors[i], factors.back());
-                factors.pop_back();
-            }
-            else
-            {
-                ++i;
-            }
-        }
+        factors.erase(std::remove_if(factors.begin(),
+                                     factors.end(),
+                                     [](auto& f) { return f.range.empty(); }),
+                      factors.end());
+        // for (size_t i = 0; i < factors.size();)
+        // {
+        //     if (factors[i].range.empty())
+        //     {
+        //         if (i != factors.size() - 1)
+        //         {
+        //             std::swap(factors[i], factors.back());
+        //         }
+
+        //         factors.pop_back();
+        //     }
+        //     else
+        //     {
+        //         ++i;
+        //     }
+        // }
     }
 };
 

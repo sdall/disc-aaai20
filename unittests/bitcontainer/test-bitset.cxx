@@ -1,5 +1,4 @@
 #include <TrivialTest.hxx>
-#include <bitcontainer/bitcontainer.hxx>
 
 #include <disc/storage/Itemset.hxx>
 
@@ -159,7 +158,7 @@ void run_test()
         TEST(count(b) == 1);
 
         size_t cnt = 0;
-        iterate_over(b, [&cnt](...) { cnt++; });
+        foreach(b, [&cnt](...) { cnt++; });
         TEST(cnt == b.count());
     }
 
@@ -275,8 +274,6 @@ void run_test()
 
 int main(void)
 {
-    run_test<sd::sparse_hybrid_bitset<size_t, 1000 / 64 + 1>>();
     run_test<sd::sparse_dynamic_bitset<size_t>>();
     run_test<sd::dynamic_bitset<size_t>>();
-    run_test<sd::hybrid_bitset<size_t, 16>>();
 }

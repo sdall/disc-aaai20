@@ -1,10 +1,9 @@
 #pragma once
 
-#include <disc/disc/Composition.hxx>
+#include <disc/desc/Composition.hxx>
+#include <disc/desc/Support.hxx>
 #include <disc/distribution/Distribution.hxx>
 #include <disc/storage/Dataset.hxx>
-#include <disc/utilities/Support.hxx>
-#include <disc/utilities/UniversalIntEncoding.hxx>
 
 #include <math/nchoosek.hxx>
 
@@ -14,6 +13,26 @@
 
 namespace sd::disc::mdl
 {
+
+constexpr size_t iterated_log2(double n)
+{
+    // iterated log
+    if (n <= 1)
+        return 0;
+    if (n <= 2)
+        return 1;
+    if (n <= 4)
+        return 2;
+    if (n <= 16)
+        return 3;
+    if (n <= 65536)
+        return 4;
+    return 5; // if (n <= 2^65536)
+    // never 6 for our case.
+}
+
+constexpr double universal_code(size_t n) { return iterated_log2(n) + 1.5186; }
+// 1.5186 = log2(2.865064)
 
 template <typename value_type, typename itemset_data>
 value_type encode_summary_mtv(const itemset_data& summary, size_t data_size, size_t data_dim)
@@ -35,7 +54,7 @@ auto encode_rows_per_component(size_t data_size, size_t num_subsets)
         return 0.0;
     else
     {
-        return math::log2_nchoosek(data_size - 1, num_subsets - 1);
+        return log2_nchoosek(data_size - 1, num_subsets - 1);
     }
 }
 
@@ -65,7 +84,7 @@ encode_pattern_by_singletons(const S& x, size_t data_size, sd::slice<const T> fr
     size_t length = 0;
     T      acc    = 0;
     // each item in pattern:
-    iterate_over(x, [&](size_t item) {
+    foreach(x, [&](size_t item) {
         T s = fr[item] * data_size;
         T a = s == 0;
         acc -= std::log2((s + a) / (data_size + a)); // encode which item in pattern
@@ -81,7 +100,7 @@ encode_pattern_by_singletons(const S& x, size_t data_size, size_t index, const F
     size_t length = 0;
     T      acc    = 0;
     // each item in pattern:
-    iterate_over(x, [&](size_t item) {
+    foreach(x, [&](size_t item) {
         T s = fr(item, index) * data_size;
         T a = s == 0;
         acc -= std::log2((s + a) / (data_size + a)); // encode which item in pattern
@@ -136,7 +155,7 @@ auto encode_assignment_matrix_without_singletons(AssignmentMatrix const& am,
 {
     const auto k   = am.size();
     const auto n_1 = trace(am) - k * dim;
-    return math::log2_nchoosek(k * (summary_size - dim), n_1) + universal_code(n_1);
+    return log2_nchoosek(k * (summary_size - dim), n_1) + universal_code(n_1);
 }
 
 template <typename S, typename T>
@@ -170,7 +189,7 @@ auto encode_model_mdl(const Composition<Trait>& c)
     lm += encode_patterns_once_globally(c.summary, c.data.size());
     lm +=
         encode_assignment_matrix_without_singletons(c.assignment, c.summary.size(), c.data.dim);
-    lm += encode_per_component_supports(c);
+    // lm += encode_per_component_supports(c);
 
 #endif
     return lm;
@@ -188,7 +207,7 @@ auto encode_model_mdl(const Summary& summary, size_t data_size)
 }
 
 template <typename Trait>
-auto encode_model_mdl(const PatternsetResult<Trait>& c)
+auto encode_model_mdl(const Component<Trait>& c)
 {
     return encode_model_mdl(c.summary, c.data.size());
 }

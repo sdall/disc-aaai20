@@ -61,31 +61,38 @@ struct Block
 template <typename model_type, typename block_container_type>
 size_t generate_blocks_long(size_t dim, model_type const& m, block_container_type& blocks)
 {
-    using count_type   = typename model_type::float_type;
+    using float_type   = typename model_type::float_type;
     using pattern_type = typename model_type::pattern_type;
-    using storage_type = disc::itemset<pattern_type>;
 
     const auto size = m.size();
 
     if (size == 0 || dim == 0)
     {
-        const auto k = std::exp2(count_type(dim));
-        blocks       = {{k, k, storage_type(dim)}};
+        const auto k = std::exp2(float_type(dim));
+
+        blocks.resize(1);
+        blocks[0].value = k;
+        blocks[0].count = k;
+        // blocks[0].cover.resize(dim);
+        blocks[0].cover.clear();
+
+        // blocks       = {{k, k, disc::itemset<pattern_type>(dim)}};
 
         return 1;
     }
 
-    disc::itemset<pattern_type> cover;
+    thread_local disc::itemset<pattern_type> cover;
     cover.reserve(dim);
+    cover.clear();
 
     blocks.clear();
     for (disc::itemset<disc::tag_dense> i(size, false); true; increment(i))
     {
         cover.clear();
 
-        iterate_over(i, [&](size_t j) { cover.insert(m.point(j)); });
+        foreach(i, [&](size_t j) { cover.insert(m.point(j)); });
 
-        const auto k = std::exp2(count_type(dim) - count_type(count(cover)));
+        const auto k = std::exp2(float_type(dim) - float_type(count(cover)));
         assert(k > 0);
         blocks.push_back({k, k, cover});
 
@@ -134,23 +141,41 @@ void generate_blocks_and_counts_long(size_t                dim,
 template <typename model_type, typename block_container_type>
 size_t generate_blocks_and_counts(size_t dim, model_type const& m, block_container_type& blocks)
 {
-    using count_type   = typename model_type::float_type;
-    using pattern_type = typename model_type::pattern_type;
-    using storage_type = disc::itemset<pattern_type>;
+
+    assert(dim < std::numeric_limits<size_t>::digits);
+    using float_type = typename model_type::float_type;
+    // using pattern_type = typename model_type::pattern_type;
+    // using storage_type = disc::itemset<pattern_type>;
 
     const auto size  = m.size();
-    const auto width = static_cast<count_type>(dim);
+    const auto width = static_cast<float_type>(dim);
 
     if (size == 0 || dim == 0)
     {
+        // blocks       = {{k, k, disc::itemset<pattern_type>(dim)}};
+
+        if (blocks.size() < 1)
+        {
+            blocks.resize(1);
+        }
+
+        auto& block = blocks.front();
+
+        block.cover.clear();
+
         const auto k = std::exp2(width);
-        blocks       = {{k, k, storage_type(dim)}};
+        block.value  = k;
+        block.count  = k;
+
         return 1;
     }
 
     const size_t part_size = std::exp2(m.size());
-    blocks.clear();
-    blocks.resize(part_size);
+    // blocks.clear();
+    if (blocks.size() < part_size)
+    {
+        blocks.resize(part_size);
+    }
 
     size_t index = 0;
 
@@ -158,11 +183,17 @@ size_t generate_blocks_and_counts(size_t dim, model_type const& m, block_contain
         auto& block = blocks[index];
 
         block.cover.clear();
-        iterate_over(i, [&](size_t j) { block.cover.insert(m.point(j)); });
-        const auto cover_size = static_cast<count_type>(count(block.cover));
+        block.cover.reserve(dim);
+
+        foreach(i, [&](size_t j) { block.cover.insert(m.point(j)); });
+
+        const auto cnt_block  = count(block.cover);
+        const auto cover_size = static_cast<float_type>(cnt_block);
         const auto k          = std::exp2(width - cover_size);
         block.value           = k;
         block.count           = k;
+
+        assert(width >= cover_size);
         assert(k > 0);
         assert(!std::isnan(k));
 
@@ -170,7 +201,8 @@ size_t generate_blocks_and_counts(size_t dim, model_type const& m, block_contain
         {
             if (is_subset(block.cover, blocks[prev].cover))
             {
-                if (count(block.cover) == count(blocks[prev].cover))
+                // if (cnt_block == count(blocks[prev].cover))
+                if (block.count == blocks[prev].count)
                 {
                     block.value = 0;
                     block.cover.clear();
@@ -190,24 +222,21 @@ size_t generate_blocks_and_counts(size_t dim, model_type const& m, block_contain
         }
     });
 
-    blocks.resize(index);
-
     return index;
 }
 
 template <typename model_type, typename block_container_type>
 size_t compute_counts(size_t dim, model_type const& m, block_container_type& blocks)
 {
-    blocks.clear();
-    if (dim < std::numeric_limits<size_t>::digits)
-    {
-        return generate_blocks_and_counts(dim, m, blocks);
-    }
-    else
-    {
-        generate_blocks_and_counts_long(dim, m, blocks);
-        return blocks.size();
-    }
+    // if (dim < std::numeric_limits<size_t>::digits)
+    // {
+    return generate_blocks_and_counts(dim, m, blocks);
+    // }
+    // else
+    // {
+    //     generate_blocks_and_counts_long(dim, m, blocks);
+    //     return blocks.size();
+    // }
 }
 
 } // namespace viva
