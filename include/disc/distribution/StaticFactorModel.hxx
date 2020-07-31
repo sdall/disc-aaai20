@@ -1,6 +1,6 @@
 #pragma once
 
-#include <disc/distribution/FactorPruning.hxx>
+// #include <disc/distribution/FactorPruning.hxx>
 #include <disc/distribution/MaxEntFactor.hxx>
 #include <disc/storage/Itemset.hxx>
 
@@ -45,7 +45,7 @@ struct StaticFactorModel
     // using cache_type            = Cache<U, V>;
     using factor_type = Factor<underlying_model_type>;
 
-    constexpr static bool enable_factor_pruning = true;
+    // constexpr static bool enable_factor_pruning = false;
 
     explicit StaticFactorModel(size_t dim) : dim(dim) { init(dim); }
     StaticFactorModel() = default;
@@ -106,16 +106,16 @@ struct StaticFactorModel
         insert_singleton(frequency, static_cast<index_type>(front(t)), estimate);
     }
 
-    void prune_factor_if(factor_type& f, size_t max_factor_size)
-    {
-        if constexpr (enable_factor_pruning)
-        {
-            if (f.factor.itemsets.set.size() > 3)
-            {
-                prune_factor(f, max_factor_size, true);
-            }
-        }
-    }
+    // void prune_factor_if(factor_type& f, size_t max_factor_size)
+    // {
+    //     if constexpr (enable_factor_pruning)
+    //     {
+    //         if (f.factor.itemsets.set.size() > 3)
+    //         {
+    //             prune_factor(f, max_factor_size, true);
+    //         }
+    //     }
+    // }
 
     template <typename T>
     void insert_pattern(value_type frequency,
@@ -134,10 +134,10 @@ struct StaticFactorModel
             {
                 if (f.factor.itemsets.set.size() < max_factor_size)
                 {
-                    if (estimate)
-                    {
-                        prune_factor_if(f, max_factor_size);
-                    }
+                    // if (estimate)
+                    // {
+                    //     prune_factor_if(f, max_factor_size);
+                    // }
                     f.factor.insert(frequency, t, estimate);
                 }
                 return;
@@ -158,10 +158,10 @@ struct StaticFactorModel
             join_factors(next, factors[s]);
         }
 
-        if (estimate)
-        {
-            prune_factor_if(next, max_factor_size);
-        }
+        // if (estimate)
+        // {
+        //     prune_factor_if(next, max_factor_size);
+        // }
 
         if (count(next.range) > max_factor_width ||
             next.factor.itemsets.set.size() > max_factor_size)

@@ -57,8 +57,8 @@ struct DefaultPatternsetMinerInterface
     static void finish(C&, const Config&)
     {
     }
-    template <typename C, typename Candidate>
-    static auto is_allowed(C& c, const Candidate& x)
+    template <typename C, typename Candidate, typename Config>
+    static auto is_allowed(C& c, const Candidate& x, const Config&)
     {
         return sd::disc::is_allowed(c, x);
     }
@@ -88,7 +88,7 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     info(std::as_const(s));
 
     auto score_fn = [&](auto& x) { return fn.heuristic(s, x, cfg); };
-    auto prune_fn = [&](const auto& t) { return t.score <= 0 || !fn.is_allowed(s, t); };
+    auto prune_fn = [&](auto& x) { return x.score <= 0 || !fn.is_allowed(s, x, cfg); };
 
     auto gen = generator(
         s.data, cfg.min_support, cfg.max_pattern_size.value_or(cfg.max_factor_width), score_fn);
