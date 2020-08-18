@@ -54,6 +54,7 @@ struct bit_view
     }
 
     bool contains(size_type k) const { return k < length() && test(k); }
+    bool operator[](size_type k) const { return contains(k); }
 
     void set(size_type k)
     {

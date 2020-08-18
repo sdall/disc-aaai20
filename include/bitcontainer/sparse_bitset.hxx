@@ -55,6 +55,7 @@ struct sparse_bit_view
     {
         return std::binary_search(container.begin(), container.end(), i);
     }
+    bool operator[](size_t i) const { return contains(i); }
 
     container_type container;
 };
@@ -153,7 +154,7 @@ struct base_bitset_sparse : sparse_bit_view<C>
 
     auto data() const { return container.data(); }
 
-    decltype(auto) operator[](size_t i) const { return container[i]; }
+    // decltype(auto) operator[](size_t i) const { return container[i]; }
 
     decltype(auto) begin() const { return container.begin(); }
     decltype(auto) end() const { return container.end(); }

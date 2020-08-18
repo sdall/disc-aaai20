@@ -37,12 +37,13 @@ void undo_split_data(Composition<Trait>& com, size_t label_before, size_t label_
     com.data.group_by_label();
 }
 
-template <typename Trait, typename P>
+template <typename Trait, typename P, typename Interface = DefaultAssignment>
 bool split_and_characterize(Composition<Trait>& com,
                             const P&            x,
                             size_t              index,
                             size_t              label_after,
-                            const DiscConfig&   cfg)
+                            const DiscConfig&   cfg,
+                            Interface&&         f = {})
 {
 
     if (index > com.data.num_components() || com.data.subset(index).size() == 0)
@@ -62,26 +63,33 @@ bool split_and_characterize(Composition<Trait>& com,
     }
     else
     {
-        characterize_components(com, cfg);
+        characterize_components(com, cfg, std::forward<Interface>(f));
         // characterize_split(com, {index, com.data.num_components() - 1}, cfg);
         return true;
     }
 }
 
-template <typename Trait, typename P>
-bool split_and_reassign(
-    Composition<Trait>& com, const P& x, size_t index, size_t label, const DiscConfig& cfg)
+template <typename Trait, typename P, typename Interface = DefaultAssignment>
+bool split_and_reassign(Composition<Trait>& com,
+                        const P&            x,
+                        size_t              index,
+                        size_t              label,
+                        const DiscConfig&   cfg,
+                        Interface&&         f = {})
 
 {
-    auto found = split_and_characterize(com, x, index, label, cfg);
+    auto found = split_and_characterize(com, x, index, label, cfg, f);
     if (found)
     {
-        reassign_components(com, cfg);
+        reassign_components(com, cfg, 1, f);
     }
     return found;
 }
 
-template <typename Trait, typename P, typename float_type>
+template <typename Trait,
+          typename P,
+          typename float_type,
+          typename Interface = DefaultAssignment>
 bool split_test_reassign(Composition<Trait>&       com,
                          const P&                  x,
                          size_t                    index,
@@ -89,11 +97,12 @@ bool split_test_reassign(Composition<Trait>&       com,
                          std::pair<size_t, size_t> component,
                          size_t                    x_index,
                          const float_type          alpha,
-                         const DiscConfig&         cfg)
+                         const DiscConfig&         cfg,
+                         Interface&&               f = {})
 
 {
 
-    bool has_split = split_and_characterize(com, x, index, label, cfg);
+    bool has_split = split_and_characterize(com, x, index, label, cfg, f);
 
     if (!has_split ||
         !test_stat_divergence(com, alpha, component.first, component.second, x_index))
@@ -102,19 +111,20 @@ bool split_test_reassign(Composition<Trait>&       com,
     }
     else
     {
-        reassign_components(com, cfg);
+        reassign_components(com, cfg, 1, f);
         return true;
     }
 }
 
-template <typename Trait, typename P, typename F>
+template <typename Trait, typename P, typename F, typename Interface = DefaultAssignment>
 bool do_split(Composition<Trait>& com,
               const P&            x,
               size_t              x_index,
               size_t              index,
               size_t              label,
               const F&            alpha,
-              const DiscConfig&   cfg)
+              const DiscConfig&   cfg,
+              Interface&&         f = {})
 {
     assert(check_invariant(com));
     assert(x_index < com.summary.size());
@@ -123,27 +133,29 @@ bool do_split(Composition<Trait>& com,
     if (cfg.test_divergence)
     {
         return split_test_reassign(
-            com, x, index, label, {index, com.data.num_components()}, x_index, alpha, cfg);
+            com, x, index, label, {index, com.data.num_components()}, x_index, alpha, cfg, f);
     }
     else
     {
-        return split_and_reassign(com, x, index, label, cfg);
+        return split_and_reassign(com, x, index, label, cfg, f);
     }
 }
 
-template <typename Trait, typename P, typename F>
+template <typename Trait, typename P, typename F, typename Interface = DefaultAssignment>
 bool do_significant_split(Composition<Trait>& com,
                           const P&            x,
                           size_t              x_index,
                           size_t              index,
                           size_t              label,
                           const F&            alpha,
-                          const DiscConfig&   cfg)
+                          const DiscConfig&   cfg,
+                          Interface&&         f = {})
 {
 
     const auto enc_before = com.encoding;
     const auto k          = com.data.num_components();
-    const bool has_split  = do_split(com, x, x_index, index, label, alpha, cfg);
+    const bool has_split =
+        do_split(com, x, x_index, index, label, alpha, cfg, std::forward<Interface>(f));
 
     bool is_significant = com.encoding.objective() < enc_before.objective();
 
@@ -182,10 +194,11 @@ bool is_early_reject(const Composition<Trait>& com,
     }
 }
 
-template <typename Trait>
+template <typename Trait, typename Interface = DefaultAssignment>
 bool disc_decomp_step(Composition<Trait>&                                 c,
                       const DiscConfig&                                   cfg,
-                      andres::RandomAccessSet<std::pair<size_t, size_t>>& rejected)
+                      andres::RandomAccessSet<std::pair<size_t, size_t>>& rejected,
+                      Interface&&                                         f = {})
 {
 
     using float_type = typename Trait::float_type;
@@ -211,7 +224,7 @@ bool disc_decomp_step(Composition<Trait>&                                 c,
             auto next = c; // expensive
 
             const auto& x   = c.summary.point(j);
-            bool        sig = do_significant_split(next, x, j, i, label++, calpha, cfg);
+            bool        sig = do_significant_split(next, x, j, i, label++, calpha, cfg, f);
 
             if (sig)
             {
@@ -244,22 +257,29 @@ bool disc_decomp_step(Composition<Trait>&                                 c,
     return is_better;
 }
 
-template <typename Trait, typename Info = EmptyCallback>
-void disc_decomp(Composition<Trait>& c, const DiscConfig& cfg, Info&& info = {})
+template <typename Trait, typename Info = EmptyCallback, typename Interface = DefaultAssignment>
+void disc_decomp(Composition<Trait>& c,
+                 const DiscConfig&   cfg,
+                 Info&&              info = {},
+                 Interface&&         f    = {})
 {
     andres::RandomAccessSet<std::pair<size_t, size_t>> rejected;
 
-    while (disc_decomp_step(c, cfg, rejected))
+    while (disc_decomp_step(c, cfg, rejected, f))
     {
         info(std::as_const(c));
     }
 }
 
-template <typename Trait, typename PatternsetMiner, typename Call>
+template <typename Trait,
+          typename PatternsetMiner,
+          typename Call,
+          typename Interface = DefaultAssignment>
 void discover_components(Composition<Trait>& c,
                          const DiscConfig&   cfg,
                          PatternsetMiner&&   patternset_miner,
-                         Call&&              report)
+                         Call&&              report,
+                         Interface&&         f = {})
 {
     using clk = std::chrono::high_resolution_clock;
 
@@ -275,7 +295,7 @@ void discover_components(Composition<Trait>& c,
         const size_t k_before = c.data.num_components();
         const size_t s_before = c.summary.size();
 
-        while (disc_decomp_step(c, cfg, rejected))
+        while (disc_decomp_step(c, cfg, rejected, f))
         {
             report(std::as_const(c));
 
@@ -296,23 +316,31 @@ void discover_components(Composition<Trait>& c,
     }
 }
 
-template <typename Trait, typename PatternsetMiner, typename Call>
+template <typename Trait,
+          typename PatternsetMiner,
+          typename Call,
+          typename Interface = DefaultAssignment>
 void mine_decompose(Composition<Trait>& com,
                     const DiscConfig&   cfg,
                     PatternsetMiner&&   pm,
-                    Call&&              report)
+                    Call&&              report,
+                    Interface&&         f = {})
 {
     pm(com, cfg);
-    disc_decomp(com, cfg, report);
+    disc_decomp(com, cfg, report, f);
 }
 
-template <typename Trait, typename PatternsetMiner, typename Call>
+template <typename Trait,
+          typename PatternsetMiner,
+          typename Call,
+          typename Interface = DefaultAssignment>
 void mine_decompose_mine(Composition<Trait>& com,
                          const DiscConfig&   cfg,
                          PatternsetMiner&&   pm,
-                         Call&&              report)
+                         Call&&              report,
+                         Interface&&         f = {})
 {
-    mine_decompose(com, cfg, pm, report);
+    mine_decompose(com, cfg, pm, report, f);
     pm(com, cfg);
 }
 

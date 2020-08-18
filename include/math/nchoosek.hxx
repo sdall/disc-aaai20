@@ -6,7 +6,7 @@ namespace sd
 {
 
 template <typename T>
-constexpr T nchoosek(T n, T k)
+T nchoosek(T n, T k)
 {
     static_assert(std::is_floating_point_v<T>, "Type not floating point");
     if (k > n)
@@ -25,7 +25,7 @@ constexpr T nchoosek(T n, T k)
 }
 
 template <typename T>
-constexpr auto log_nchoosek(T n, T k)
+auto log_nchoosek(T n, T k)
 {
     using result_t = std::decay_t<decltype(log(T{}))>;
     using std::log;
@@ -44,7 +44,7 @@ constexpr auto log_nchoosek(T n, T k)
     return result;
 }
 
-constexpr double log2_nchoosek(double n, double k)
+double log2_nchoosek(double n, double k)
 {
     using std::log;
     return log_nchoosek<double>(n, k) / log(2);

@@ -4,8 +4,6 @@
 
 #include <datatable/data_table.hxx>
 
-// #include <boost/container/pmr/vector.hpp>
-
 namespace sd::disc
 {
 
@@ -77,8 +75,8 @@ struct column_type<disc::tag_sparse>
 namespace sd::disc
 {
 
-template <typename S>
-struct PartitionedData;
+// template <typename S>
+// struct PartitionedData;
 
 template <typename S>
 struct Dataset : public sd::df::col_store<S>
@@ -96,13 +94,14 @@ struct Dataset : public sd::df::col_store<S>
         dim = std::max(dim, get_dim(point(this->size() - 1)));
     }
 
-    Dataset& operator=(const PartitionedData<S>& rhs)
-    {
-        using sd::disc::point;
-        for (const auto x : rhs)
-            insert(point(x));
-        return *this;
-    }
+    // Dataset& operator=(const PartitionedData<S>& rhs)
+    // {
+    //     using sd::disc::point;
+    //     this->reserve(other.size());
+    //     for (const auto x : rhs)
+    //         insert(point(x));
+    //     return *this;
+    // }
 
     template <typename R, typename = std::enable_if_t<!std::is_same_v<R, Dataset<S>>>>
     Dataset(R&& other)
@@ -261,7 +260,7 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
 {
     using pattern_type = S;
 
-    PartitionedData() = default;
+    PartitionedData() : data(std::make_shared<Dataset<S>>()) {}
 
     explicit PartitionedData(Dataset<S>&& rhs)
     {
@@ -277,7 +276,8 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
         group_by_label();
     }
 
-    explicit PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels) : PartitionedData(std::forward<Dataset<S>>(rhs))
+    explicit PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels)
+        : PartitionedData(std::forward<Dataset<S>>(rhs))
     {
         assert(labels.size() == this->size());
         std::copy_n(labels.begin(), labels.size(), this->template col<0>().begin());
@@ -298,7 +298,8 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
     //     }
     //     else
     //     {
-    //         this->push_back(label, itemset_view<S>(x.container, x.length_), original_position);
+    //         this->push_back(label, itemset_view<S>(x.container, x.length_),
+    //         original_position);
     //     }
 
     //     // if (data->capacity() != c)
@@ -393,11 +394,16 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
     {
         return this->template col<2>()[index];
     }
-  
+
+    const auto& underlying_data() const { return *data; }
+
+private:
     std::shared_ptr<Dataset<S>> data{new Dataset<S>()};
     std::vector<size_t>         positions;
-    size_t                      dim                   = 0;
-    size_t                      num_components_backup = 0;
+
+public:
+    size_t dim                   = 0;
+    size_t num_components_backup = 0;
 };
 
 template <typename S>

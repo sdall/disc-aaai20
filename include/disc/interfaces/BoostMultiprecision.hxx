@@ -2,13 +2,13 @@
 #ifndef INTERFACE_BOOST_MULTIPRECISION
 #define INTERFACE_BOOST_MULTIPRECISION
 
-#if __has_include(<quadmath.h>) && __has_include(<boost/multiprecision/float128.hpp>)
+#if __has_include(<quadmath.h>) && __has_include(<boost/multiprecision/float128.hpp>) && WITH_QUADMATH
 // #pragma message "float128"
 
 #define HAS_HIGH_PRECISION_FLOAT_TYPE 1
 
-#include <limits>
 #include <boost/multiprecision/float128.hpp>
+#include <limits>
 
 using precise_float_t = boost::multiprecision::float128;
 // using precise_float_t = __float128;
@@ -39,7 +39,7 @@ auto isinf(const precise_float_t& x) { return boost::multiprecision::isinf(x); }
 auto sqrt(const precise_float_t& x) { return boost::multiprecision::sqrt(x); }
 } // namespace std
 
-#elif __has_include(<mpfr.h>) && __has_include(<boost/multiprecision/mpfr.hpp>)
+#elif __has_include(<mpfr.h>) && __has_include(<boost/multiprecision/mpfr.hpp>) && WITH_MPFR
 // #pragma message "mpfr"
 
 #define HAS_HIGH_PRECISION_FLOAT_TYPE 1

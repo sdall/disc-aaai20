@@ -51,7 +51,6 @@ auto total_cost_pattern(const C& c, const Dist& dist, const Candidate& x, const 
     }
 }
 
-
 template <typename Trait, typename Candidate, typename Masks>
 auto desc_heuristic_multi(const Composition<Trait>& c,
                           const Candidate&          x,
@@ -64,14 +63,14 @@ auto desc_heuristic_multi(const Composition<Trait>& c,
 
     for (size_t i = 0; i < c.data.num_components(); ++i)
     {
-        auto p             = c.models[i].expectation(x.pattern);
-        auto support       = size_of_intersection(x.row_ids, masks[i]);
-        auto fr            = static_cast<float_type>(support) / c.data.size();
-        auto expected_gain = support == 0 ? 0 : support * std::log2(fr / p);
+        auto p = c.models[i].expectation(x.pattern);
+        auto s = size_of_intersection(x.row_ids, masks[i]);
+        auto q = static_cast<float_type>(s) / c.data.subset(i).size();
+        auto h = s == 0 ? 0 : s * std::log2(q / p);
 
         assert(0 <= p && p <= 1);
 
-        acc += expected_gain - additional_cost_pattern(c, x, support, i, cfg);
+        acc += h - additional_cost_pattern(c, x, s, i, cfg);
     }
 
     return acc;
@@ -81,13 +80,16 @@ template <typename C, typename Distribution, typename Candidate>
 auto desc_heuristic_1(const C& c, const Distribution& pr, const Candidate& x, const Config& cfg)
 {
     using float_type = typename C::float_type;
-    const auto fr    = static_cast<float_type>(x.support) / c.data.size();
-    const auto p     = pr.expectation(x.pattern);
+
+    const auto s = static_cast<float_type>(x.support);
+    const auto q = s / c.data.size();
+    const auto p = pr.expectation(x.pattern);
+
     assert(0 <= p && p <= 1);
 
-    const float_type gain = x.support == 0 ? 0 : x.support * std::log2(fr / p);
+    const float_type h = s == 0 ? 0 : s * std::log2(q / p);
 
-    return gain - total_cost_pattern(c, pr, x, cfg);
+    return h - total_cost_pattern(c, pr, x, cfg);
 }
 
 template <typename Trait, typename Candidate>

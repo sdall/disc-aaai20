@@ -11,81 +11,91 @@ We define the problem in terms of a regularized maximum likelihood, in which we 
 
 ## Required Dependencies
 
-1. C++17 compiler
-2. Boost.Math
+1. C++17 compiler, OpenMP
+2. Boost
+3. TBB
 
-The following ```python``` and ```R``` libraries are thin layers around a common ```C++17``` core. 
+On Debian or Ubuntu you can obtain these for example using 
 
-## Optional Dependencies
+```sh
+    apt install libboost-dev libtbb2 libtbb-dev g++ 
+```
 
-3. GNU Quadmath
-4. Boost.Multiprecision (for higher-precision float128)
-5. pybind11, numpy
-6. Rcpp
+On Fedora you can obtain these for example using 
 
-## Python
+```sh
+    dnf install boost-devel tbb-devel g++
+```
 
+On MacOS you can obtain these for example using Homebrew and
+
+```sh
+    brew install tbb boost gcc libomp
+```
+
+For higher precision floating points we can optionally make use of the non-standard 128 bit float type, however, for this we require GNU Quadmath, Boost.Multiprecision and g++.
+
+## Use DISC and DESC from Python
+
+If the dependencies above are met, you can simply install the python version using
 ```sh
     pip install git+https://github.com/sdall/disc-aaai20.git
 ```
+and simply import the algorithms using 
+```python
+    from disc import disc, desc
+```
+These functions either expect a binary numpy matrix or a sparse representation of the binary data matrix, that is $B_{ij} = 1$ implies that in row $i$ we can find the value $j$. For example $B = \begin{matrix} 0 & 1 \\ 1 & 1 \end{matrix}$ implies 
+```python
+    data = [[0], [0, 1]]
+```
+For this given, we can now discover an informative pattern set
+
+```python
+    desc(data)
+```
+or we can use a numpy matrix directly, e.g.
+
+```python
+    import numpy
+    desc(numpy.random.uniform(size=(10,5)) > 0.5)
+```
+It returns a python dictionary with information such as the summary, (initial) objective function and frequencies of singletons and patterns. If we have multiple datasets given, i.e. classes, DESC can describe these in terms of characteristic and shared patterns
+
+```python
+    class_labels = [0, 1]
+    desc(data, class_labels)
+```
+Additionally, we are now provided with the assignment matrix that assigns a pattern to component (class) if that pattern is informative for that class.
+
+However, if we have no class labels and if we are interested in the parts of the data that exhibit a significantly different distribution from the rest, we can make use of DISC to jointly discover and describe these, i.e.
+
+```python
+    disc(data)
+```
+Again, we are provided with the assignment matrix, but in addition, we also have access to the estimated class labels.
 
 For a complete example see the notebook ```jupyter/disc-iris.ipynb```.
 
-```python
-    import disc
-    data = [
-        [1, 2, 3], 
-        [1, 4, 5], 
-        # ...
-    ]
+## Use DISC and DESC from R
 
-    # DESC: Discover patternset for a single dataset
-
-    c = disc.discover_patternset(data)
-    ratio = c["encoding"] / c["initial_encoding"]
-
-    # DESC: Discover pattern-composition for decomposed dataset
-    #       The labels correspond to the component to which a row in the dataset belongs to 
-
-    labels=[0, 1]
-    c = disc.characterize_partitions(data, labels)
-
-    # DISC: Jointly decompose the dataset and discover the pattern-composition
-    c = disc.discover_composition(data)
-```
-
-You can also use our implementation of the ```Maximum Entropy Distribution``` independently from the rest
-
-```python
-    # make sure that any element i < dim_of_data
-    dim_of_data = 10
-    Distribution p(dim_of_data)
-
-    p.infer([1,2])
-    p.insert(0.1, [1,2])
-    p.infer([1,2])
-```
-
-## R
+If all requirements are met, starting from the root-directory of this project you can compile and import the Rcpp based bindings by using
 
 ```R
+    install.packages('Rcpp')
     require(Rcpp)
-    inc = paste("-I", paste(getwd(),'/include', sep=''),sep='')
+    inc = paste('-std=c++17 -DWITH_EXECUTION_POLICIES=1 ', '-I ', getwd(), '/include', ' -I ', getwd(), '/src', sep='')
     Sys.setenv("PKG_CXXFLAGS"=inc)
-    sourceCpp("src/rcpp/RcppDisc.cpp")
+    Sys.setenv("PKG_LIBS"="-ltbb") 
+    sourceCpp("src/bindings/R/RDisc.cpp")
 ```
+Similar to the python interface you now have access to desc and disc
 
 ```R
-    library(discminer)
-    data = list(c(1, 2, 3), c(1, 4, 5))
+    data   <- list(c(1, 2, 3), c(2, 3, 4))
     labels <- list(0, 1)
 
-    s <- discover_patternset(data, 0.05, 1)
-    s <- characterize_partitions(data, labels, 0.05, 1)
-    s <- discover_composition(data, 0.05, 1)
-
-    p <- new(MEDistribution, 10)
-    p$infer(c(1, 2))
-    p$insert(0.1, c(1, 2))
-    p$infer(c(1, 2))
+    desc(data)
+    desc(data, labels)
+    disc(data)
 ```

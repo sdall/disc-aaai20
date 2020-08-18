@@ -36,8 +36,6 @@ auto encode_model_bic_aaai20(const Composition<Trait>& c) -> typename Trait::flo
     return log2(n) * df / 2.;
 }
 
-
-
 template <typename Trait>
 auto encode_model_bic_new(const Composition<Trait>& c)
 {
@@ -57,6 +55,7 @@ auto encode_model_bic_new(const Composition<Trait>& c)
 template <typename Trait>
 auto encode_model_bic(const Composition<Trait>& c) -> typename Trait::float_type
 {
+    // return encode_model_bic_aaai20(c);
     using std::log2;
     const auto k = c.data.num_components();
     const auto m = c.summary.size() - c.data.dim;

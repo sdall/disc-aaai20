@@ -7,7 +7,8 @@
 #include <optional>
 #include <vector>
 
-#if __has_include(<execution>) && defined(WITH_EXECUTION_POLICIES)
+#if __has_include(<execution>) && WITH_EXECUTION_POLICIES
+
 #define HAS_EXECUTION_POLICIES 1
 #include <execution>
 // #include <tbb/parallel_sort.h>
@@ -255,7 +256,7 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 10)
+            if (candidates.size() > 1024 * 4)
             {
                 // GCC 10's std::sort(std::execution::par uses a parallel_stable_sort that might
                 // allocate memory
@@ -285,7 +286,7 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 10)
+            if (candidates.size() > 1024 * 4)
             {
                 // tbb::parallel_sort(candidates.begin(), candidates.end(), ordering{});
                 std::sort(std::execution::par_unseq,
@@ -305,7 +306,7 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 10)
+            if (candidates.size() > 1024 * 4)
             {
                 auto ptr = std::remove_if(std::execution::par_unseq,
                                           candidates.begin(),
@@ -392,7 +393,7 @@ struct SlimGeneratorImpl
             auto top = candidates.back(); // copy is intentional
 
             combine_pairs(top, true, score);
-            prune(prune_pred);
+            this->prune(prune_pred);
 
             if (!has_next())
                 break;

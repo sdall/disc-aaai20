@@ -1,36 +1,78 @@
-import os
-import sys
-import pybind11
-import platform
+import os, sys, shutil, subprocess
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
 
-cpp_args = []
-cpp_libs = []
+DISTNAME = 'disc'
+DESCRIPTION = 'Discover and Describe Diverging Data Partitions'
+AUTHOR = 'Sebastian Dalleiger'
+AUTHOR_EMAIL = 'sdalleig@mpi-inf.mpg.de'
+LICENSE = 'MIT'
+VERSION = "0.2.1"
+URL = 'https://github.com/sdalleig/disc-aaai20'
+CLASSIFIERS = ['Intended Audience :: Science/Research',
+               'Intended Audience :: Developers',
+               'Intended Audience :: Data Scientists',
+               'License :: MIT',
+               'License :: OSI Approved',
+               'Programming Language :: Python',
+               'Programming Language :: C++',
+               'Topic :: Scientific/Engineering',
+               'Operating System :: Microsoft :: Windows',
+               'Operating System :: POSIX',
+               'Operating System :: Unix',
+               'Operating System :: MacOS']
 
-if platform.system() == 'Windows':
-    cpp_args = ['/std:c++latest', '/MD', '/O2', '/Ob2', '/DNDEBUG', '/MT', '/openmp']
-else:
-    cpp_args = ['-std=gnu++17', '-O3', '-march=native', '-fopenmp']
-    cpp_libs = ['gomp', 'tbb', 'quadmath']
+with open('README.md') as readme_file:
+    LONG_DESCRIPTION = readme_file.read()
 
-ext_modules = [
-    Extension(
-        'disc',
-        ['./src/pybind11/PyDisc.cpp'],
-        include_dirs=['./include','./src', pybind11.get_include(True)],
-        language='c++',
-        libraries=cpp_libs,
-        extra_compile_args=cpp_args,
-    ),
-]
+class Ext(Extension):
+    def __init__(self, name, sourcedir=''):
+        Extension.__init__(self, name, sources=[])
+        self.sourcedir = os.path.abspath(sourcedir)
+
+
+class Build(build_ext):
+    def run(self):
+        for ext in self.extensions:
+            self.build_extension(ext)
+
+    def build_extension(self, ext):
+        # required for auto-detection of auxiliary "native" libs
+        extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
+        if not extdir.endswith(os.path.sep):
+            extdir += os.path.sep
+
+        if not os.path.exists(self.build_temp):
+            os.makedirs(self.build_temp)
+
+        cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
+                      '-DPYTHON_EXECUTABLE=' + sys.executable,
+                      "-DCMAKE_BUILD_TYPE=Release",
+                      "-DCMAKE_INSTALL_PREFIX={}".format(extdir)]
+
+        subprocess.check_call(['cmake', '-H{}'.format(ext.sourcedir), '-B{}'.format(self.build_temp)] + cmake_args, cwd=self.build_temp)
+        subprocess.check_call(['cmake', '--build', self.build_temp, '--target', 'install'], cwd=self.build_temp)
+        # subprocess.check_call(['meson', "--prefix", extdir, self.build_temp, ext.sourcedir], cwd=self.build_temp)
+        # subprocess.check_call(['meson', 'install'], cwd=self.build_temp)
+        ## subprocess.check_call(['meson', 'install', '-C', self.build_temp], cwd=self.build_temp)
+        shutil.rmtree(self.build_temp)
 
 setup(
-    name='disc',
-    version='0.4.0',
-    author='Sebastian Dalleiger',
-    author_email='sdalleig@mpi-inf.mpg.de',
-    license="MIT",
-    description='Discover the pattern composition, that is (i) a partitioning of a dataset into components that have significantly differently distributed patterns; and (ii) describe the partitioning using characteristic patterns or patterns shared among sets of components.',
-    ext_modules=ext_modules,
-    install_requires=['pybind11', 'numpy'],
+    name=DISTNAME,
+    author=AUTHOR,
+    author_email=AUTHOR_EMAIL,
+    maintainer=AUTHOR,
+    maintainer_email=AUTHOR_EMAIL,
+    description=DESCRIPTION,
+    long_description=LONG_DESCRIPTION,
+    license=LICENSE,
+    version=VERSION,
+    url=URL,
+    download_url=URL,
+    classifiers=CLASSIFIERS,
+    options={"bdist_wheel": {"universal": True}},
+    ext_modules=[Ext('disc')],
+    cmdclass=dict(build_ext=Build),
+    zip_safe=False,
+    install_requires=['cmake', 'pybind11', 'numpy'],
 )

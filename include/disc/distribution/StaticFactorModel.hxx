@@ -112,7 +112,7 @@ struct StaticFactorModel
     //     {
     //         if (f.factor.itemsets.set.size() > 3)
     //         {
-    //             prune_factor(f, max_factor_size, true);
+    //             prune_factor(f, max_factor_size);
     //         }
     //     }
     // }
@@ -193,16 +193,7 @@ struct StaticFactorModel
     }
 
     template <typename T>
-    void insert(value_type frequency, const T& t)
-    {
-        if (is_singleton(t))
-            insert_singleton(frequency, t);
-        else
-            insert_pattern(frequency, t);
-    }
-
-    template <typename T>
-    void insert(value_type frequency, const T& t, bool estimate)
+    void insert(value_type frequency, const T& t, bool estimate = false)
     {
         if (is_singleton(t))
             insert_singleton(frequency, t, estimate);

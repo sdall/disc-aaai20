@@ -22,7 +22,7 @@ struct Distribution
 
     Distribution(size_t dimension, size_t length)
         : model(dimension)
-        , epsilon(std::min(float_type(1e-16), float_type(1) / (length * dimension)))
+        , epsilon(std::min(float_type(1e-16), float_type(1) / (length + dimension)))
     {
         assert(dimension > 0);
         assert(length > 0);

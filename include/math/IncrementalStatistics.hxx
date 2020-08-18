@@ -134,8 +134,6 @@ public:
     explicit IncrementalDescription(const Range& xs)
         : IncrementalDescription(xs.begin(), xs.end())
     {
-        for (const auto& x : xs)
-            apply(x);
     }
 
     template <typename Iter>

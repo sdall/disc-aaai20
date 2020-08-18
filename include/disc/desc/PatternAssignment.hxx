@@ -9,13 +9,19 @@ namespace sd
 namespace disc
 {
 
-template <typename Trait, typename float_type, typename X>
-auto confidence(
-    const Composition<Trait>& c, size_t index, const float_type& q, const X& x, const Config&)
+struct DefaultAssignment
 {
-    using std::log2;
-    return log2(q / c.models[index].expectation(x));
-}
+    template <typename Trait, typename Pattern>
+    static auto confidence(const Composition<Trait>&         c,
+                           size_t                            index,
+                           const typename Trait::float_type& q,
+                           const Pattern&                    x,
+                           const Config&)
+    {
+        using std::log2;
+        return log2(q / c.models[index].expectation(x));
+    }
+};
 
 template <typename Trait, typename Candidate>
 void insert_pattern_to_summary(Composition<Trait>& c, const Candidate& x)
@@ -33,14 +39,16 @@ void insert_pattern_to_summary(Composition<Trait>& c, const Candidate& x)
     for (size_t j = 0; j < c.data.num_components(); ++j)
     {
         auto s   = size_of_intersection(x.row_ids, c.masks[j]);
-        auto q   = static_cast<float_type>(s) / c.data.size(); // c.data.subset(j).size();
-        new_q(j) = q;
+        new_q(j) = static_cast<float_type>(s) / c.data.subset(j).size();
     }
     new_q.back() = glob_frequency;
 }
 
-template <typename Trait, typename Candidate>
-bool find_assignment_impl(Composition<Trait>& c, const Candidate& x, const Config& cfg)
+template <typename Trait, typename Candidate, typename Interface = DefaultAssignment>
+bool find_assignment_impl(Composition<Trait>& c,
+                          const Candidate&    x,
+                          const Config&       cfg,
+                          Interface&&         f = {})
 {
     using float_type = typename Trait::float_type;
 
@@ -54,9 +62,9 @@ bool find_assignment_impl(Composition<Trait>& c, const Candidate& x, const Confi
         auto& pr = c.models[i];
         if (s > 0 && pr.is_allowed(x.pattern))
         {
-            auto q = static_cast<float_type>(s) / c.data.size(); 
+            auto q = static_cast<float_type>(s) / c.data.subset(i).size();
 
-            if (confidence(c, i, q, x.pattern, cfg)) // assignment_score
+            if (f.confidence(c, i, q, x.pattern, cfg))
             {
                 pr.insert(q, x.pattern, true);
                 c.assignment[i].insert(c.summary.size());
@@ -93,8 +101,11 @@ bool find_assignment_impl_first(Composition<Trait>& c, const Candidate& x, const
     return true;
 }
 
-template <typename Trait, typename Candidate>
-bool find_assignment(Composition<Trait>& c, const Candidate& x, const Config& cfg)
+template <typename Trait, typename Candidate, typename Interface = DefaultAssignment>
+bool find_assignment(Composition<Trait>& c,
+                     const Candidate&    x,
+                     const Config&       cfg,
+                     Interface&&         f = {})
 {
     if (c.data.num_components() == 1)
     {
@@ -102,21 +113,22 @@ bool find_assignment(Composition<Trait>& c, const Candidate& x, const Config& cf
     }
     else
     {
-        return find_assignment_impl(c, x, cfg);
+        return find_assignment_impl(c, x, cfg, std::forward<Interface>(f));
     }
 }
 
-template <typename Trait, typename Candidate>
-bool find_assignment(Component<Trait>& c, const Candidate& x, const Config&)
+template <typename Trait, typename Candidate, typename Interface = DefaultAssignment>
+bool find_assignment(Component<Trait>& c, const Candidate& x, const Config&, Interface&& = {})
 {
     using float_type = typename Trait::float_type;
 
     if (x.score < 0)
         return false;
 
-    const auto fr = static_cast<float_type>(x.support) / c.data.size();
-    c.model.insert(fr, x.pattern, true);
-    c.summary.insert(fr, x.pattern);
+    auto q = static_cast<float_type>(x.support) / c.data.size();
+
+    c.model.insert(q, x.pattern, true);
+    c.summary.insert(q, x.pattern);
 
     return true;
 }

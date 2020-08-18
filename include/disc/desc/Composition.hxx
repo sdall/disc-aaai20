@@ -83,19 +83,20 @@ auto construct_component_masks(const Composition<Trait>& c)
     assert(check_invariant(c));
 
     std::vector<tid_container> masks;
-    masks.reserve(16);
-    if (c.data.size() > 1)
+
+    if (c.data.empty())
+        return masks;
+
+    masks.resize(c.data.num_components(), tid_container{c.data.size()});
+    for (size_t s = 0, row = 0, n = c.data.num_components(); s < n; ++s)
     {
-        masks.resize(c.data.num_components(), tid_container{c.data.size()});
-        for (size_t s = 0, row = 0, n = c.data.num_components(); s < n; ++s)
+        for ([[maybe_unused]] const auto& x : c.data.subset(s))
         {
-            for ([[maybe_unused]] const auto& x : c.data.subset(s))
-            {
-                masks[s].insert(row);
-                ++row;
-            }
+            masks[s].insert(row);
+            ++row;
         }
     }
+
     return masks;
 }
 

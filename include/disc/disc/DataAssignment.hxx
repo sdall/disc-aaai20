@@ -110,21 +110,24 @@ auto reassign_rows(Composition<Trait>& c)
     }
 }
 
-template <typename Trait, typename CALLBACK = EmptyCallback>
-void reassign_components_step(Composition<Trait>& c, const DiscConfig& cfg)
+template <typename Trait,
+          typename CALLBACK  = EmptyCallback,
+          typename Interface = DefaultAssignment>
+void reassign_components_step(Composition<Trait>& c, const DiscConfig& cfg, Interface&& f = {})
 {
     auto r = label_to_component_id(c);
     reassign_rows(c);
     remove_empty_components(c, r);
     c.data.group_by_label();
     simplify_labels(c.data);
-    characterize_components(c, cfg);
+    characterize_components(c, cfg, f);
 }
 
-template <typename Trait, typename CB = EmptyCallback>
+template <typename Trait, typename CB = EmptyCallback, typename Interface = DefaultAssignment>
 void reassign_components(Composition<Trait>& c,
                          const DiscConfig&   cfg,
                          size_t              max_iteration = 1,
+                         Interface&&         f             = {},
                          CB&&                cb_gain       = {})
 {
     c.data.group_by_label();
@@ -135,7 +138,7 @@ void reassign_components(Composition<Trait>& c,
     {
         auto before_encoding = c.encoding;
 
-        reassign_components_step(c, cfg);
+        reassign_components_step(c, cfg, f);
         assert(check_invariant(c));
 
         cb_gain(before_encoding, c.encoding);
