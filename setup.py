@@ -1,6 +1,7 @@
 import os, sys, shutil, subprocess
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+import cmake
 
 DISTNAME = 'disc'
 DESCRIPTION = 'Discover and Describe Diverging Data Partitions'
@@ -26,9 +27,9 @@ with open('README.md') as readme_file:
     LONG_DESCRIPTION = readme_file.read()
 
 class Ext(Extension):
-    def __init__(self, name, sourcedir=''):
+    def __init__(self, name, src=''):
         Extension.__init__(self, name, sources=[])
-        self.sourcedir = os.path.abspath(sourcedir)
+        self.src = os.path.abspath(src)
 
 
 class Build(build_ext):
@@ -38,21 +39,23 @@ class Build(build_ext):
 
     def build_extension(self, ext):
         # required for auto-detection of auxiliary "native" libs
-        extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        if not extdir.endswith(os.path.sep):
-            extdir += os.path.sep
+        t = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
+        if not t.endswith(os.path.sep):
+            t += os.path.sep
 
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
-        cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
+        cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + t,
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
                       "-DCMAKE_BUILD_TYPE=Release",
-                      "-DCMAKE_INSTALL_PREFIX={}".format(extdir)]
+                      "-DCMAKE_INSTALL_PREFIX={}".format(t)]
 
-        subprocess.check_call(['cmake', '-H{}'.format(ext.sourcedir), '-B{}'.format(self.build_temp)] + cmake_args, cwd=self.build_temp)
-        subprocess.check_call(['cmake', '--build', self.build_temp, '--target', 'install'], cwd=self.build_temp)
-        # subprocess.check_call(['meson', "--prefix", extdir, self.build_temp, ext.sourcedir], cwd=self.build_temp)
+        cmake_bin = cmake.CMAKE_BIN_DIR + os.path.sep + 'cmake'
+
+        subprocess.check_call([cmake_bin, '-H{}'.format(ext.src), '-B{}'.format(self.build_temp)] + cmake_args, cwd=self.build_temp)
+        subprocess.check_call([cmake_bin, '--build', self.build_temp, '--target', 'install'], cwd=self.build_temp)
+        # subprocess.check_call(['meson', "--prefix", t, self.build_temp, ext.src], cwd=self.build_temp)
         # subprocess.check_call(['meson', 'install'], cwd=self.build_temp)
         ## subprocess.check_call(['meson', 'install', '-C', self.build_temp], cwd=self.build_temp)
         shutil.rmtree(self.build_temp)
