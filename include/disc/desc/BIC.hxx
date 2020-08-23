@@ -61,26 +61,11 @@ auto encode_model_bic(const Composition<Trait>& c) -> typename Trait::float_type
     const auto m = c.summary.size() - c.data.dim;
     return log2(c.data.size()) * m * k / 2;
 }
+
 template <typename Trait>
 auto encode_model_bic(const Component<Trait>& c)
 {
     return std::log2(c.data.size()) * (c.summary.size() - c.data.dim) / 2.;
 }
-
-#if 0
-template <typename C>
-auto additional_cost_bic(const C& c ) -> typename C::float_type
-{
-    using data_type = std::decay_t<decltype(c.data)>;
-
-    size_t df = 1;
-    if constexpr (meta::has_components_member_fn<data_type>::value)
-    {
-        auto k = c.data.num_components();
-        df += k > 1 ? k : 0;
-    }
-    return std::log2(c.data.size()) * df / 2;
-}
-#endif
 
 } // namespace sd::disc::bic

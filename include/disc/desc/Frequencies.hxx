@@ -20,7 +20,7 @@ void compute_frequency_matrix_column(const PartitionedData<S>&   data,
         fr(i, comp_index) = 0;
 
     auto component = data.subset(comp_index);
-    for (auto&& x : component)
+    for (const auto& x : component)
     {
         for (size_t i = 0; i < summary.size(); ++i)
         {
@@ -43,26 +43,14 @@ void compute_frequency_matrix(const PartitionedData<S>&   data,
                               sd::ndarray<T, 2>&          fr)
 {
     size_t n_cols = data.num_components();
-    if (n_cols > 1)
-        n_cols += 1;
 
+    // fr = sd::ndarray<T, 2>({summary.size(), data.num_components()});
     fr.clear();
     fr.resize(sd::layout<2>({summary.size(), n_cols}), 0.0);
 
-    if (fr.extent(1) == 1)
+    for (size_t j = 0; j < n_cols; ++j)
     {
-        std::copy_n(summary.labels().begin(), summary.size(), fr[0].begin());
-    }
-    else
-    {
-        for (size_t j = 0; j < n_cols - 1; ++j)
-        {
-            compute_frequency_matrix_column(data, summary, j, fr);
-        }
-        for (size_t i = 0; i < summary.size(); ++i)
-        {
-            fr(i, n_cols - 1) = summary.label(i);
-        }
+        compute_frequency_matrix_column(data, summary, j, fr);
     }
 }
 

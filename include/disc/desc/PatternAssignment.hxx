@@ -31,17 +31,16 @@ void insert_pattern_to_summary(Composition<Trait>& c, const Candidate& x)
     assert(c.frequency.extent(1) > 0);
 
     const auto glob_frequency = static_cast<float_type>(x.support) / c.data.size();
-
     c.summary.insert(glob_frequency, x.pattern);
-    c.frequency.push_back();
-    auto new_q = c.frequency[c.frequency.length() - 1];
 
+    c.frequency.push_back();
+    auto new_q = c.frequency[c.frequency.extent(0) - 1];
     for (size_t j = 0; j < c.data.num_components(); ++j)
     {
         auto s   = size_of_intersection(x.row_ids, c.masks[j]);
         new_q(j) = static_cast<float_type>(s) / c.data.subset(j).size();
     }
-    new_q.back() = glob_frequency;
+    // new_q.back() = glob_frequency;
 }
 
 template <typename Trait, typename Candidate, typename Interface = DefaultAssignment>

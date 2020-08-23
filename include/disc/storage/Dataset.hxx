@@ -22,7 +22,6 @@ decltype(auto) point(const std::tuple<T>& t)
 {
     return std::get<0>(t);
 }
-
 template <typename... Ts>
 decltype(auto) point(std::tuple<Ts...>&& t)
 {
@@ -38,7 +37,6 @@ decltype(auto) point(const std::tuple<Ts...>& t)
 {
     return std::get<1>(t);
 }
-
 template <typename... Ts>
 decltype(auto) label(std::tuple<Ts...>&& t)
 {
@@ -93,15 +91,6 @@ struct Dataset : public sd::df::col_store<S>
         }
         dim = std::max(dim, get_dim(point(this->size() - 1)));
     }
-
-    // Dataset& operator=(const PartitionedData<S>& rhs)
-    // {
-    //     using sd::disc::point;
-    //     this->reserve(other.size());
-    //     for (const auto x : rhs)
-    //         insert(point(x));
-    //     return *this;
-    // }
 
     template <typename R, typename = std::enable_if_t<!std::is_same_v<R, Dataset<S>>>>
     Dataset(R&& other)
@@ -161,25 +150,32 @@ struct LabeledDataset : public sd::df::col_store<L, S>
 };
 
 template <typename S>
-struct PartitionedData_Copies : public sd::df::col_store<size_t, S, size_t>
+struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
 {
     using pattern_type = S;
 
-    template <typename T>
-    void insert(T&& t, size_t label, size_t original_position)
+    PartitionedData_Copy() = default;
+
+    explicit PartitionedData_Copy(Dataset<S>&& rhs)
     {
-        this->push_back(label, storage_container<S>(std::forward<T>(t)), original_position);
-        if constexpr (std::is_same_v<S, tag_sparse>)
+        this->reserve(rhs.size());
+        dim = rhs.dim;
+        for (size_t i = 0; i < rhs.size(); ++i)
         {
-            point(this->size() - 1).container.shrink_to_fit();
+            this->push_back(size_t(0), std::move(rhs.point(i)), ++i);
         }
-        dim = std::max(dim, get_dim(point(this->size() - 1)));
+        group_by_label();
     }
 
-    template <typename T>
-    void insert(T&& t, size_t label = 0)
+    explicit PartitionedData_Copy(Dataset<S>&& rhs, const std::vector<size_t>& labels)
     {
-        insert(std::forward<T>(t), label, this->size());
+        this->reserve(rhs.size());
+        dim = rhs.dim;
+        for (size_t i = 0; i < rhs.size(); ++i)
+        {
+            this->push_back(labels[i], std::move(rhs.point(i)), ++i);
+        }
+        group_by_label();
     }
 
     auto subset(size_t index)
@@ -252,67 +248,61 @@ struct PartitionedData_Copies : public sd::df::col_store<size_t, S, size_t>
 
 template <typename T>
 using itemset_view = std::conditional_t<is_sparse(T{}),
-                                        sd::sparse_bit_view<sd::slice<sparse_index_type>>,
-                                        sd::bit_view<sd::slice<uint64_t>>>;
+                                        sd::sparse_bit_view<sd::slice<const sparse_index_type>>,
+                                        sd::bit_view<sd::slice<const uint64_t>>>;
+
+itemset_view<tag_sparse> make_view(const storage_container<tag_sparse>& x)
+{
+    return {x.container};
+}
+itemset_view<tag_dense> make_view(const storage_container<tag_dense>& x)
+{
+    return {{x.container}, x.length_};
+}
+template <typename T>
+void swap(itemset_view<T>& a, itemset_view<T>& b)
+{
+    std::swap(a, b);
+}
+
 
 template <typename S>
 struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_t>
 {
     using pattern_type = S;
 
-    PartitionedData() : data(std::make_shared<Dataset<S>>()) {}
+    PartitionedData() = default;
+    PartitionedData(const PartitionedData&) = default;
+    PartitionedData(PartitionedData&&)      = default;
+    PartitionedData& operator=(const PartitionedData&) = default;
+    PartitionedData& operator=(PartitionedData&&) = default;
 
     explicit PartitionedData(Dataset<S>&& rhs)
     {
         data = std::make_shared<Dataset<S>>(std::forward<Dataset<S>>(rhs));
-
+        dim  = data->dim;
         this->resize(data->size());
 
         auto& ol = this->template col<2>();
         std::iota(ol.begin(), ol.end(), 0);
 
         reindex();
-        dim = data->dim;
         group_by_label();
     }
 
     explicit PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels)
-        : PartitionedData(std::forward<Dataset<S>>(rhs))
     {
         assert(labels.size() == this->size());
+
+        data = std::make_shared<Dataset<S>>(std::forward<Dataset<S>>(rhs));
+        dim  = data->dim;
+        this->resize(data->size());
+
         std::copy_n(labels.begin(), labels.size(), this->template col<0>().begin());
+
+        reindex();
         group_by_label();
     }
-
-    // template <typename T>
-    // void insert(T&& t, size_t label, size_t original_position)
-    // {
-    //     auto c = data->capacity();
-    //     data->insert(std::forward<T>(t));
-
-    //     auto& x = data->point(data->size() - 1);
-
-    //     if constexpr (std::is_same_v<S, tag_sparse>)
-    //     {
-    //         this->push_back(label, itemset_view<S>{x.container}, original_position);
-    //     }
-    //     else
-    //     {
-    //         this->push_back(label, itemset_view<S>(x.container, x.length_),
-    //         original_position);
-    //     }
-
-    //     // if (data->capacity() != c)
-    //         reindex();
-
-    //     dim = data->dim;
-    // }
-
-    // template <typename T>
-    // void insert(T&& t, size_t label = 0)
-    // {
-    //     insert(std::forward<T>(t), label, this->size());
-    // }
 
     auto subset(size_t index)
     {
@@ -335,17 +325,10 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
     void reindex()
     {
         assert(data->size() == this->size());
-        for (size_t i = 0; i < data->size(); ++i)
+        for (size_t i = 0; i < this->size(); ++i)
         {
-            if constexpr (std::is_same_v<S, tag_sparse>)
-            {
-                point(i) = itemset_view<S>{data->point(i).container};
-            }
-            else
-            {
-                auto& x  = data->point(i);
-                point(i) = itemset_view<S>(x.container, x.length_);
-            }
+            point(i) = make_view(data->point(i));
+            assert(sd::equal(point(i), data->point(i)));
         }
     }
 
@@ -398,8 +381,8 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
     const auto& underlying_data() const { return *data; }
 
 private:
-    std::shared_ptr<Dataset<S>> data{new Dataset<S>()};
-    std::vector<size_t>         positions;
+    std::shared_ptr<Dataset<S>> data;
+    std::vector<size_t> positions;
 
 public:
     size_t dim                   = 0;
@@ -417,20 +400,5 @@ void simplify_labels(PartitionedData<S>& data)
         }
     }
 }
-
-namespace meta
-{
-template <typename T, typename = void>
-struct has_components_member_fn : std::false_type
-{
-};
-
-template <typename T>
-struct has_components_member_fn<T, std::void_t<decltype(std::declval<T>().num_components())>>
-    : std::true_type
-{
-};
-
-} // namespace meta
 
 } // namespace sd::disc

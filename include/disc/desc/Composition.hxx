@@ -46,15 +46,15 @@ struct Composition
     using size_type         = typename Trait::size_type;
     using tid_container     = long_storage_container<typename Trait::pattern_type>;
 
-    PartitionedData<pattern_type>            data             = {};
-    LabeledDataset<float_type, pattern_type> summary          = {};
-    AssignmentMatrix                         assignment       = {};
-    sd::ndarray<float_type, 2>               frequency        = {};
-    EncodingLength<float_type>               encoding         = {};
-    EncodingLength<float_type>               initial_encoding = {};
-    std::vector<distribution_type>           models           = {};
-    std::vector<float_type>                  subset_encodings = {};
-    std::vector<tid_container>               masks            = {};
+    PartitionedData<pattern_type>            data;
+    LabeledDataset<float_type, pattern_type> summary;
+    AssignmentMatrix                         assignment;
+    sd::ndarray<float_type, 2>               frequency;
+    EncodingLength<float_type>               encoding;
+    EncodingLength<float_type>               initial_encoding;
+    std::vector<distribution_type>           models;
+    std::vector<float_type>                  subset_encodings;
+    std::vector<tid_container>               masks;
 };
 
 template <typename T>

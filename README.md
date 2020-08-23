@@ -27,7 +27,7 @@ On Fedora you can obtain these for example using
     dnf install boost-devel tbb-devel g++
 ```
 
-On MacOS you can obtain these for example using Homebrew 
+On MacOS you can obtain these for example using Homebrew
 
 ```sh
     brew install tbb boost gcc libomp

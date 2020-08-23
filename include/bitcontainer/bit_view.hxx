@@ -29,6 +29,11 @@ struct bit_view
         return std::ceil(float(n_bits) / bits_per_block);
     }
 
+    bit_view(const bit_view&) = default;
+    bit_view(bit_view&&)      = default;
+    bit_view& operator=(const bit_view&) = default;
+    bit_view& operator=(bit_view&&) = default;
+
     bit_view() { length_ = num_blocks() * bits_per_block; }
 
     explicit bit_view(size_type length_) : length_(length_)
