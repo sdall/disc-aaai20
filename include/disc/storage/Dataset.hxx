@@ -162,7 +162,7 @@ struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
         dim = rhs.dim;
         for (size_t i = 0; i < rhs.size(); ++i)
         {
-            this->push_back(size_t(0), std::move(rhs.point(i)), ++i);
+            this->push_back(size_t(0), std::move(rhs.point(i)), i);
         }
         group_by_label();
     }
@@ -173,7 +173,7 @@ struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
         dim = rhs.dim;
         for (size_t i = 0; i < rhs.size(); ++i)
         {
-            this->push_back(labels[i], std::move(rhs.point(i)), ++i);
+            this->push_back(labels[i], std::move(rhs.point(i)), i);
         }
         group_by_label();
     }
@@ -265,7 +265,6 @@ void swap(itemset_view<T>& a, itemset_view<T>& b)
     std::swap(a, b);
 }
 
-
 template <typename S>
 struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_t>
 {
@@ -277,7 +276,7 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
     PartitionedData& operator=(const PartitionedData&) = default;
     PartitionedData& operator=(PartitionedData&&) = default;
 
-    explicit PartitionedData(Dataset<S>&& rhs)
+    PartitionedData(Dataset<S>&& rhs)
     {
         data = std::make_shared<Dataset<S>>(std::forward<Dataset<S>>(rhs));
         dim  = data->dim;
@@ -290,13 +289,16 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
         group_by_label();
     }
 
-    explicit PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels)
+    PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels)
     {
         assert(labels.size() == this->size());
 
         data = std::make_shared<Dataset<S>>(std::forward<Dataset<S>>(rhs));
         dim  = data->dim;
         this->resize(data->size());
+
+        auto& ol = this->template col<2>();
+        std::iota(ol.begin(), ol.end(), 0);
 
         std::copy_n(labels.begin(), labels.size(), this->template col<0>().begin());
 
