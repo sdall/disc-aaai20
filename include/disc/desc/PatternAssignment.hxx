@@ -19,7 +19,7 @@ struct DefaultAssignment
                            const Config&)
     {
         using std::log2;
-        return log2(q / c.models[index].expectation(x));
+        return log2(q / c.models[index].expectation(x)) > 0;
     }
 };
 
