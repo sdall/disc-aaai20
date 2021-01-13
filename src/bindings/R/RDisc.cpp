@@ -113,7 +113,10 @@ discover_patternset(const Rcpp::List& dataset, const Rcpp::List& labels, size_t 
     {
         Component<trait_type> c;
         create_dataset(dataset, c);
+        initialize_model(c, cfg);
+        c.initial_encoding = sd::disc::encode(c, cfg);
         sd::disc::discover_patterns_generic(c, cfg);
+        c.encoding = sd::disc::encode(c, cfg);
         return translate_to_rcpp(c);
     }
     else
@@ -124,6 +127,7 @@ discover_patternset(const Rcpp::List& dataset, const Rcpp::List& labels, size_t 
         auto initial_encoding = c.encoding = encode(c, cfg);
         discover_patterns_generic(c, cfg);
         c.initial_encoding = initial_encoding;
+        c.encoding = sd::disc::encode(c, cfg);
         c.data.revert_order();
         return translate_to_rcpp_list(c);
     }

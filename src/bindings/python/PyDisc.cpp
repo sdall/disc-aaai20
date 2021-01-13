@@ -21,6 +21,17 @@ The pattern composition consists the following:
     (2) an description of the partitioning using characteristic and shared patterns
 )doc";
 
+    // m.def("explain_statistically",
+    //       &explain_statistically,
+    //       "Discovers informative patterns using the maxent distribution",
+    //       "dataset"_a,
+    //       "labels"_a.none(true)           = py::list(),
+    //       "min_support"_a                 = 2,
+    //       "alpha"_a                       = 0.05,
+    //       "is_relaxed"_a                  = false,
+    //       "is_sparse"_a                   = false,
+    //       "use_higher_precision_floats"_a = false);
+
     m.def("desc",
           &describe_partitions,
           "Discovers informative patterns using the maxent distribution",

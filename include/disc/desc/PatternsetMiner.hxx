@@ -82,8 +82,8 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     assert(s.data.dim != 0);
 
     fn.prepare(s, cfg);
-    s.encoding         = fn.objective(s, cfg);
-    s.initial_encoding = s.encoding;
+    // s.encoding         = fn.objective(s, cfg);
+    // s.initial_encoding = s.encoding;
 
     info(std::as_const(s));
 
@@ -136,7 +136,7 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     }
 
     fn.finish(s, cfg);
-    s.encoding = fn.objective(s, cfg);
+    // s.encoding = fn.objective(s, cfg);
 }
 
 } // namespace sd::disc

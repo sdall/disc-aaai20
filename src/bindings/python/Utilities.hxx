@@ -195,9 +195,9 @@ py::dict desc_impl(Dataset<S> dataset, std::vector<size_t> labels, size_t min_su
         Composition<trait_type> c;
         c.data = PartitionedData<S>(std::move(dataset), std::move(labels));
         initialize_model(c, cfg);
-        auto initial_encoding = c.encoding = encode(c, cfg);
-        auto ms                            = timeit([&] { discover_patterns_generic(c, cfg); });
-        c.initial_encoding                 = initial_encoding;
+        c.initial_encoding = encode(c, cfg);
+        auto ms            = timeit([&] { discover_patterns_generic(c, cfg); });
+        c.encoding         = encode(c, cfg);
         c.data.revert_order();
 
         return translate_to_pydict(c, ms);
@@ -205,8 +205,11 @@ py::dict desc_impl(Dataset<S> dataset, std::vector<size_t> labels, size_t min_su
     else
     {
         Component<trait_type> c;
-        c.data  = std::move(dataset);
-        auto ms = timeit([&] { discover_patterns_generic(c, cfg); });
+        c.data = std::move(dataset);
+        initialize_model(c, cfg);
+        c.initial_encoding = encode(c, cfg);
+        auto ms            = timeit([&] { discover_patterns_generic(c, cfg); });
+        c.encoding         = encode(c, cfg);
 
         return translate_to_pydict(c, ms);
     }
@@ -252,6 +255,7 @@ auto disc_impl(Dataset<typename trait_type::pattern_type>&& dataset,
     auto ms = timeit([&] { discover_components(c, cfg, pm, sd::EmptyCallback{}); });
 
     c.initial_encoding = initial_encoding;
+    c.encoding         = encode(c, cfg);
     c.data.revert_order();
 
     return translate_to_pydict(c, ms);
