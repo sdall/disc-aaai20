@@ -287,6 +287,7 @@ void discover_components(Composition<Trait>& c,
     const auto  st = clk::now();
 
     patternset_miner(c, cfg);
+    c.encoding = encode(c, cfg);
 
     andres::RandomAccessSet<std::pair<size_t, size_t>> rejected;
 
@@ -304,6 +305,7 @@ void discover_components(Composition<Trait>& c,
         }
 
         patternset_miner(c, cfg);
+        c.encoding = encode(c, cfg);
 
         if (tt && clk::now() > st + *tt)
             break;

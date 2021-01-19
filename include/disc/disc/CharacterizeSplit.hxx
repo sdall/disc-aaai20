@@ -27,7 +27,7 @@ void resize_after_split(Composition<Trait>&       c,
     if (c.frequency.size() == 0 || c.data.num_components() == 1 ||
         c.frequency.extent(1) > c.data.num_components())
     {
-        compute_frequency_matrix(c.data, c.summary, c.frequency);
+        compute_frequency_matrix(c);
     }
     else
     {

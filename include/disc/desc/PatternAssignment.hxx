@@ -21,6 +21,16 @@ struct DefaultAssignment
         using std::log2;
         return log2(q / c.models[index].expectation(x)) > 0;
     }
+    
+    template <typename Trait, typename Pattern>
+    static auto confidence(const Component<Trait>&         c,
+                           const typename Trait::float_type& q,
+                           const Pattern&                    x,
+                           const Config&)
+    {
+        using std::log2;
+        return log2(q / c.model.expectation(x)) > 0;
+    }
 };
 
 template <typename Trait, typename Candidate>

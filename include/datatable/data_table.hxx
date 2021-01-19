@@ -358,8 +358,9 @@ void tuple_swap_impl(std::tuple<Ts&...>&& a,
                      std::tuple<Ts&...>&& b,
                      std::index_sequence<Is...>&&)
 {
+    using std::swap;
     [[maybe_unused]] auto _ =
-        std::initializer_list<int>{(std::swap(std::get<Is>(a), std::get<Is>(b)), 0)...};
+        std::initializer_list<int>{(swap(std::get<Is>(a), std::get<Is>(b)), 0)...};
 }
 
 } // namespace df

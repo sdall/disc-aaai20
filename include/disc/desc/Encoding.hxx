@@ -19,6 +19,10 @@ auto log_likelihood(Distribution_Type const& model, const Data_Type& data)
     // const auto l = std::min<float_t>(1e-10, float_t(1) / (model.model.dim + data.size()));
     // const auto l = float_t(1) / (model.model.dim + data.size());
 
+    // return pstl::reduce(begin(data), end(data), float_t(), [&](auto acc, const auto& x) {
+    //     return acc - model.log_expectation(point(x));
+    // });
+
     float_t acc = 0;
 #pragma omp parallel for reduction(+ : acc)
     for (size_t i = 0; i < data.size(); ++i)

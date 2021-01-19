@@ -93,8 +93,24 @@ auto reassign_rows(Composition<Trait>& c)
     // any data-point t is assigned to the component D* with highest likelihood
     // D* <- D* \cup t for D* = argmax_{D_i} p(t | S_i)
     //
+    // pstl::for_each(pstl::execution::par_unseq,
+    //                c.data.begin(),
+    //                c.data.end(),
+    //                [&](auto&& x) {
+    //                    float_type p_max = 0;
+    //                    for (size_t i = 0; i < c.data.num_components(); ++i)
+    //                    {
+    //                        const auto p = c.models[i].expectation(point(x));
+    //                        if (p_max < p)
+    //                        {
+    //                            p_max    = p;
+    //                            label(x) = i;
+    //                        }
+    //                    }
+    //                })
+
 #pragma omp parallel for
-    for (size_t k = 0; k < c.data.size(); ++k)
+        for (size_t k = 0; k < c.data.size(); ++k)
     {
         std::pair<size_t, float_type> best = {0, -1};
 

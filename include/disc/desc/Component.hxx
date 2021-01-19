@@ -60,7 +60,7 @@ struct Component
             a.insert(i);
         }
 
-        compute_frequency_matrix(c.data, c.summary, c.frequency);
+        compute_frequency_matrix(c);
         return c;
     }
 };
@@ -84,11 +84,21 @@ typename Trait::distribution_type& initialize_model(Component<Trait>& c, const C
 
     for (const auto& i : summary)
     {
-        if (pr.is_allowed(point(i)))
+        if (is_singleton(point(i)))
         {
-            pr.insert(label(i), point(i), true);
+            pr.insert_singleton(label(i), point(i), false);
         }
     }
+
+    for (const auto& i : summary)
+    {
+        if (!is_singleton(point(i)) && pr.is_allowed(point(i)))
+        {
+            pr.insert(label(i), point(i), false);
+        }
+    }
+    
+    estimate_model(pr);
 
     return pr;
 }

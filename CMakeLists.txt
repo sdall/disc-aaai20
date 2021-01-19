@@ -19,13 +19,36 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 # Dependencies
 ##############################################################################
 set(CMAKE_MODULE_PATH "/usr/share/cmake/Modules;${CMAKE_MODULE_PATH}") #WTF cmake?
-
+# list(APPEND CMAKE_PREFIX_PATH /local/home/sdalleig/local/gcc-10.1.0/include)
 find_package(OpenMP REQUIRED)
 find_package(Boost REQUIRED) 
 find_package(TBB REQUIRED)
 
+# include (CheckIncludeFileCXX)
+# include (CheckCXXSymbolExists)
+# include (CheckCXXSourceCompiles)
+# check_cxx_source_compiles("
+# #include <execution>
+# #include <algorithm>
+# int main () {
+#     int x[2]{2,1}; std::sort(std::execution::par, x, x); return 0;
+# }
+# " 
+# WITH_EXECUTION_POLICY CMAKE_REQUIRED_LIBRARIES ${TBB_LIBRARIES})
+# set(CMAKE_REQUIRED_LIBRARIES tbb)
+# set(CMAKE_REQUIRED_LINK_OPTIONS tbb)
+# check_cxx_symbol_exists(std::execution::par execution WITH_EXECUTION_POLICY)
+# check_include_file_cxx("execution" WITH_EXECUTION_POLICY)
+# message(STATUS "${WITH_EXECUTION_POLICY}")
+
+# find_file(WITH_EXECUTION_POLICY NAMES "execution" PATHS "${CMAKE_CURRENT_LIST_DIR}" REQUIRED)
+# if(WITH_EXECUTION_POLICY)
+# else()
+#     message(SEND_ERROR "No <execution> header found, try a newer compiler! (e.g. gcc 10.1.0)")
+# endif()
 target_link_libraries(${PROJECT_NAME} INTERFACE 
         Boost::boost
+        tbb
         OpenMP::OpenMP_CXX 
         ${TBB_LIBRARIES}
 )

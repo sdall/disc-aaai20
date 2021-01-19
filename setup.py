@@ -46,18 +46,15 @@ class Build(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
-        cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + t,
-                      '-DPYTHON_EXECUTABLE=' + sys.executable,
+        cmake_args = ['-DPYTHON_EXECUTABLE=' + sys.executable,
                       "-DCMAKE_BUILD_TYPE=Release",
                       "-DCMAKE_INSTALL_PREFIX={}".format(t)]
 
         cmake_bin = cmake.CMAKE_BIN_DIR + os.path.sep + 'cmake'
 
-        subprocess.check_call([cmake_bin, '-H{}'.format(ext.src), '-B{}'.format(self.build_temp)] + cmake_args, cwd=self.build_temp)
-        subprocess.check_call([cmake_bin, '--build', self.build_temp, '--target', 'install'], cwd=self.build_temp)
-        # subprocess.check_call(['meson', "--prefix", t, self.build_temp, ext.src], cwd=self.build_temp)
-        # subprocess.check_call(['meson', 'install'], cwd=self.build_temp)
-        ## subprocess.check_call(['meson', 'install', '-C', self.build_temp], cwd=self.build_temp)
+        subprocess.check_call([cmake_bin, '-H{}'.format(ext.src), '-B{}'.format(self.build_temp)] + cmake_args)
+        subprocess.check_call([cmake_bin, '--build', self.build_temp,'--target', 'install'])
+
         shutil.rmtree(self.build_temp)
 
 setup(

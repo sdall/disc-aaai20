@@ -13,24 +13,13 @@ PYBIND11_MODULE(disc, m)
     using namespace sd::disc::pyutils;
 
     m.doc() =
-        R"doc(DISC: Discover and Describe Data Partitions
+R"doc(DISC: Discover and Describe Data Partitions
 -------------------------------------------------
 This module contains the python interface to DISC, a method for discovering the pattern composition of a dataset.
 The pattern composition consists the following:
     (1) an interpretable partitioning of the data into components in which patterns follow a significantly different distribution
     (2) an description of the partitioning using characteristic and shared patterns
 )doc";
-
-    // m.def("explain_statistically",
-    //       &explain_statistically,
-    //       "Discovers informative patterns using the maxent distribution",
-    //       "dataset"_a,
-    //       "labels"_a.none(true)           = py::list(),
-    //       "min_support"_a                 = 2,
-    //       "alpha"_a                       = 0.05,
-    //       "is_relaxed"_a                  = false,
-    //       "is_sparse"_a                   = false,
-    //       "use_higher_precision_floats"_a = false);
 
     m.def("desc",
           &describe_partitions,

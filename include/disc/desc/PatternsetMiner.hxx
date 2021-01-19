@@ -25,37 +25,27 @@ bool is_allowed(const Composition<Trait>& c, const Candidate& x)
 template <typename Trait, typename Config>
 void prepare(Component<Trait>& c, const Config& cfg)
 {
-    if (c.summary.empty() || c.model.model.dim != c.data.dim)
+    if (c.summary.empty() || c.model.model.dim != c.data.dim) 
         initialize_model(c, cfg);
 }
 
 template <typename Trait, typename Config>
-void prepare(Composition<Trait>& c, const Config&)
+void prepare(Composition<Trait>& c, const Config& cfg)
 {
-    assert(check_invariant(c));
+    if(!check_invariant(c)) 
+    {
+        initialize_model(c, cfg);
+    }
+    
     c.masks = construct_component_masks(c);
 }
 
 struct DefaultPatternsetMinerInterface
 {
-    template <typename C, typename Config>
-    static auto objective(C& c, const Config& cfg)
-    {
-        return sd::disc::encode(c, cfg);
-    }
     template <typename C, typename Candidate, typename Config>
     static auto heuristic(C& c, Candidate& x, const Config& cfg)
     {
         return sd::disc::desc_heuristic(c, x, cfg);
-    }
-    template <typename C, typename Config>
-    static auto prepare(C& c, const Config& cfg)
-    {
-        return sd::disc::prepare(c, cfg);
-    }
-    template <typename C, typename Config>
-    static void finish(C&, const Config&)
-    {
     }
     template <typename C, typename Candidate, typename Config>
     static auto is_allowed(C& c, const Candidate& x, const Config&)
@@ -66,6 +56,24 @@ struct DefaultPatternsetMinerInterface
     static auto insert_into_model(C& c, Candidate& x, const Config& cfg)
     {
         return sd::disc::find_assignment(c, x, cfg);
+    }
+
+    template <typename C, typename Config>
+    static auto objective(C& c, const Config& cfg)
+    {
+        return sd::disc::encode(c, cfg);
+    }
+    template <typename C, typename Config>
+    static void prepare(C& c, const Config& cfg)
+    {
+        sd::disc::prepare(c, cfg);
+        // c.encoding         = objective(c, cfg);
+        // c.initial_encoding = c.encoding;
+    }
+    template <typename C, typename Config>
+    static void finish(C&, const Config&)
+    {
+        // c.encoding = objective(c, cfg);
     }
 };
 
@@ -82,8 +90,6 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     assert(s.data.dim != 0);
 
     fn.prepare(s, cfg);
-    // s.encoding         = fn.objective(s, cfg);
-    // s.initial_encoding = s.encoding;
 
     info(std::as_const(s));
 
@@ -102,11 +108,8 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     size_t     patience   = cfg.max_patience;
     const auto start_time = clk::now();
 
-    for (size_t it = 0; it < cfg.max_iteration; ++it)
+    for (size_t it = 0; it < cfg.max_iteration && gen.has_next(); ++it)
     {
-        if (!gen.has_next())
-            break;
-
         auto c = gen.next();
 
         if (c && fn.insert_into_model(s, *c, cfg))
@@ -136,7 +139,6 @@ void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info
     }
 
     fn.finish(s, cfg);
-    // s.encoding = fn.objective(s, cfg);
 }
 
 } // namespace sd::disc

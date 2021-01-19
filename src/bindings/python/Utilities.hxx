@@ -2,6 +2,8 @@
 
 #include <bindings/common/TraitBuilder.hxx>
 #include <disc/desc/Composition.hxx>
+#include <disc/utilities/ModelPruning.hxx>
+#include <disc/utilities/BiMap.hxx>
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -9,6 +11,15 @@
 
 namespace sd::disc::pyutils
 {
+
+struct IDescMK2 : DefaultPatternsetMinerInterface
+{
+    template <typename C, typename Config>
+    static auto finish(C& c, const Config& cfg)
+    {
+        sd::disc::prune_pattern_composition(c, cfg);
+    }
+};
 
 template <typename T = std::chrono::milliseconds, typename Fn>
 auto timeit(Fn&& fn)
@@ -26,25 +37,25 @@ auto timeit(Fn&& fn)
 namespace py = pybind11;
 
 template <typename py_list_t, typename S>
-auto& pylist_to_itemset(const py_list_t& x, S& out)
+auto& pylist_to_itemset(const py_list_t& x, S& out, BiMap& tr)
 {
     out.clear();
     for (const auto& i : x)
     {
-        out.insert(py::cast<size_t>(i));
+        out.insert(tr.convert_to_internal(py::cast<size_t>(i)));
     }
     return out;
 }
 
 template <typename S>
-Dataset<S> create_dataset(const py::list& xss)
+Dataset<S> create_dataset(const py::list& xss, BiMap& tr)
 {
     itemset<S> buffer;
     Dataset<S> out;
     out.reserve(xss.size());
     for (const auto& xs : xss)
     {
-        out.insert(pylist_to_itemset(xs, buffer));
+        out.insert(pylist_to_itemset(xs, buffer, tr));
     }
     return out;
 }
@@ -77,11 +88,11 @@ Dataset<S> create_dataset(const py::array_t<bool>& x)
 }
 
 template <typename S>
-Dataset<S> create_dataset_pyobject(const py::object& x)
+Dataset<S> create_dataset_pyobject(const py::object& x, BiMap& tr)
 {
     if (py::isinstance<py::list>(x))
     {
-        return create_dataset<S>(py::cast<py::list>(x));
+        return create_dataset<S>(py::cast<py::list>(x), tr);
     }
     if (py::isinstance<py::array>(x))
     {
@@ -104,10 +115,34 @@ py::list data_to_pylist(const Data& in)
     return out;
 }
 
-template <typename Trait>
-py::dict translate_to_pydict(Component<Trait> const& c, std::chrono::milliseconds ms)
+
+
+template <typename Data>
+py::list data_to_pylist(const Data& in, BiMap& tr)
 {
-    py::list patternset  = data_to_pylist(c.summary);
+
+    if (tr.empty()) return data_to_pylist(in);
+
+    py::list out;
+    using namespace sd::disc;
+    std::vector<size_t> row;
+    for (const auto& x : in)
+    {
+        row.clear();
+        sd::foreach(point(x), [&](size_t i) { row.push_back(tr.convert_to_external(i)); });
+        std::sort(row.begin(), row.end());
+        py::list xx = py::cast(row);
+        out.append(std::move(xx));
+    }
+    return out;
+}
+
+
+template <typename Trait>
+py::dict
+translate_to_pydict(Component<Trait> const& c, std::chrono::milliseconds ms, BiMap& tr)
+{
+    py::list patternset = data_to_pylist(c.summary, tr);
     py::list frequencies = py::cast(c.summary.template col<0>());
     py::dict r;
 
@@ -124,7 +159,7 @@ py::dict translate_to_pydict(Component<Trait> const& c, std::chrono::millisecond
 }
 
 template <typename Trait>
-py::dict translate_to_pydict(Composition<Trait> const& c, std::chrono::milliseconds ms)
+py::dict translate_to_pydict(Composition<Trait> const& c, std::chrono::milliseconds ms, BiMap& tr)
 {
     auto frequencies = py::array_t<double>();
     frequencies.resize({c.frequency.extent(0), c.frequency.extent(1)});
@@ -134,7 +169,7 @@ py::dict translate_to_pydict(Composition<Trait> const& c, std::chrono::milliseco
         target[i] = static_cast<double>(c.frequency.data()[i]);
     }
 
-    auto A = py::array_t<double>();
+    auto A = py::array_t<int>();
     A.resize({c.assignment.size(), c.summary.size() /* - c.data.dim */});
 
     for (size_t i = 0; i < c.assignment.size(); ++i)
@@ -157,8 +192,8 @@ py::dict translate_to_pydict(Composition<Trait> const& c, std::chrono::milliseco
         assignment_list.append(std::move(xx));
     }
 
-    py::list labels     = py::cast(c.data.template col<0>());
-    py::list patternset = data_to_pylist(c.summary);
+    py::list labels = py::cast(c.data.template col<0>());
+    py::list patternset = data_to_pylist(c.summary, tr);
 
     py::dict r;
 
@@ -180,62 +215,63 @@ py::dict translate_to_pydict(Composition<Trait> const& c, std::chrono::milliseco
 }
 
 template <typename trait_type, typename S>
-py::dict desc_impl(Dataset<S> dataset, std::vector<size_t> labels, size_t min_support)
+py::dict desc_impl(Dataset<S> dataset, std::vector<size_t> labels, size_t min_support, BiMap& tr)
 {
     using namespace sd::disc;
 
     DiscConfig cfg;
     cfg.min_support      = min_support;
     cfg.use_bic          = true;
-    cfg.max_factor_size  = 8;
-    cfg.max_factor_width = 10;
+    cfg.max_factor_size  = 10;
+    cfg.max_factor_width = 12;
 
     if (labels.size() != 0)
     {
         Composition<trait_type> c;
         c.data = PartitionedData<S>(std::move(dataset), std::move(labels));
         initialize_model(c, cfg);
-        c.initial_encoding = encode(c, cfg);
-        auto ms            = timeit([&] { discover_patterns_generic(c, cfg); });
-        c.encoding         = encode(c, cfg);
+        c.initial_encoding = c.encoding = encode(c, cfg);
+        auto ms    = timeit([&] { discover_patterns_generic(c, cfg, IDescMK2{}); });
+        c.encoding = encode(c, cfg);
         c.data.revert_order();
 
-        return translate_to_pydict(c, ms);
+        return translate_to_pydict(c, ms, tr);
     }
     else
     {
         Component<trait_type> c;
         c.data = std::move(dataset);
-        initialize_model(c, cfg);
-        c.initial_encoding = encode(c, cfg);
-        auto ms            = timeit([&] { discover_patterns_generic(c, cfg); });
-        c.encoding         = encode(c, cfg);
 
-        return translate_to_pydict(c, ms);
+        initialize_model(c, cfg);
+        c.initial_encoding = c.encoding = encode(c, cfg);
+        auto ms    = timeit([&] { discover_patterns_generic(c, cfg, IDescMK2{}); });
+        c.encoding = encode(c, cfg);
+
+        return translate_to_pydict(c, ms, tr);
     }
 
     return {};
 }
 
-template <typename S>
-auto desc(Dataset<S>&       dataset,
-          std::vector<int>& labels,
-          size_t            min_support,
-          bool              use_higher_precision_floats = false)
-{
-    py::dict r;
-    sd::disc::select_real_type<S>(use_higher_precision_floats, [&](auto trait) {
-        std::vector<size_t> yy(labels.begin(), labels.end());
-        r = desc_impl<decltype(trait)>(dataset, yy, min_support);
-    });
+// template <typename S>
+// auto desc(Dataset<S>&       dataset,
+//           std::vector<int>& labels,
+//           size_t            min_support,
+//           bool              use_higher_precision_floats = false)
+// {
+//     py::dict r;
+//     sd::disc::select_real_type<S>(use_higher_precision_floats, [&](auto trait) {
+//         std::vector<size_t> yy(labels.begin(), labels.end());
+//         r = desc_impl<decltype(trait)>(dataset, yy, min_support);
+//     });
 
-    return r;
-}
+//     return r;
+// }
 
 template <typename trait_type>
 auto disc_impl(Dataset<typename trait_type::pattern_type>&& dataset,
                size_t                                       min_support,
-               double                                       alpha)
+               double                                       alpha, BiMap& tr)
 {
     using namespace sd::disc;
 
@@ -250,31 +286,47 @@ auto disc_impl(Dataset<typename trait_type::pattern_type>&& dataset,
     c.data = PartitionedData<typename trait_type::pattern_type>(std::move(dataset));
     initialize_model(c, cfg);
     auto initial_encoding = c.encoding = encode(c, cfg);
-    auto pm = [](auto& c, const auto& g) { discover_patterns_generic(c, g); };
+    auto pm = [](auto& c, const auto& g) { discover_patterns_generic(c, g, IDescMK2{}); };
 
     auto ms = timeit([&] { discover_components(c, cfg, pm, sd::EmptyCallback{}); });
 
     c.initial_encoding = initial_encoding;
-    c.encoding         = encode(c, cfg);
     c.data.revert_order();
 
-    return translate_to_pydict(c, ms);
+    return translate_to_pydict(c, ms, tr);
 }
 
-template <typename S>
-auto disc(Dataset<S>&       dataset,
-          std::vector<int>& labels,
-          size_t            min_support,
-          bool              use_higher_precision_floats = false)
-{
-    py::dict r;
-    sd::disc::select_real_type<S>(use_higher_precision_floats, [&](auto trait) {
-        std::vector<size_t> yy(labels.begin(), labels.end());
-        r = disc_impl<decltype(trait)>(dataset, yy, min_support);
-    });
+// template <typename S>
+// auto disc(Dataset<S>&       dataset,
+//           std::vector<int>& labels,
+//           size_t            min_support,
+//           bool              use_higher_precision_floats = false)
+// {
+//     py::dict r;
+//     sd::disc::select_real_type<S>(use_higher_precision_floats, [&](auto trait) {
+//         std::vector<size_t> yy(labels.begin(), labels.end());
+//         r = disc_impl<decltype(trait)>(dataset, yy, min_support);
+//     });
 
-    return r;
-}
+//     return r;
+// }
+
+// void transform_to_output_range(py::list patterns, BiMap& tr)
+// {
+//     if (!tr.empty())
+//     {
+//         py::list new_patterns;
+//         for (auto& x : patterns)
+//         {
+//             py::list y;
+//             for (auto& i : x)
+//                 y.append(tr.convert_to_external(py::cast<size_t>(i)));
+//             std::sort(y.begin(), y.end());
+//             new_patterns.append(y);
+//         }
+//         patterns = new_patterns;
+//     }
+// } 
 
 auto describe_partitions(const py::object& dataset,
                          const py::object& labels,
@@ -283,11 +335,14 @@ auto describe_partitions(const py::object& dataset,
                          bool              use_higher_precision_floats = false)
 {
     py::dict r;
+
+    BiMap tr;
+
     sd::disc::build_trait(is_sparse, use_higher_precision_floats, [&](auto trait) {
         using T = decltype(trait);
         using S = typename T::pattern_type;
-        auto x  = create_dataset_pyobject<S>(dataset);
-        r       = pyutils::desc_impl<T>(x, py::cast<std::vector<size_t>>(labels), min_support);
+        auto x  = create_dataset_pyobject<S>(dataset, tr);
+        r       = pyutils::desc_impl<T>(x, py::cast<std::vector<size_t>>(labels), min_support, tr);
     });
     return r;
 }
@@ -299,10 +354,11 @@ auto discover_composition(const py::object& dataset,
                           bool              use_higher_precision_floats = false)
 {
     py::dict r;
+    BiMap tr;
     sd::disc::build_trait(is_sparse, use_higher_precision_floats, [&](auto trait) {
         using T = decltype(trait);
         using S = typename T::pattern_type;
-        r = pyutils::disc_impl<T>(create_dataset_pyobject<S>(dataset), min_support, alpha);
+        r = pyutils::disc_impl<T>(create_dataset_pyobject<S>(dataset, tr), min_support, alpha, tr);
     });
     return r;
 }

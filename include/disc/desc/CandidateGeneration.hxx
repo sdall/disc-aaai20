@@ -7,11 +7,10 @@
 #include <optional>
 #include <vector>
 
-#if __has_include(<execution>) && WITH_EXECUTION_POLICIES
-
+#if WITH_EXECUTION_POLICIES // && __has_include(<execution>)
 #define HAS_EXECUTION_POLICIES 1
 #include <execution>
-// #include <tbb/parallel_sort.h>
+// #include <tbb/tbb.h>
 #endif
 
 namespace sd
@@ -82,9 +81,7 @@ struct SlimGeneratorImpl
 
     struct lexless_pattern
     {
-        template <class S, class T>
-        bool operator()(const SlimCandidate<S, T>  x,
-                        const SlimCandidate<S, T>& y) const noexcept
+        bool operator()(const state_type x, const state_type& y) const noexcept
         {
             return std::lexicographical_compare(x.pattern.container.begin(),
                                                 x.pattern.container.end(),
@@ -95,9 +92,7 @@ struct SlimGeneratorImpl
 
     struct equals_pattern
     {
-        template <class S, class T>
-        bool operator()(const SlimCandidate<S, T>  x,
-                        const SlimCandidate<S, T>& y) const noexcept
+        bool operator()(const state_type x, const state_type& y) const noexcept
         {
             return x.support == y.support && sd::equal(y.pattern, x.pattern);
         }
@@ -256,21 +251,17 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 4)
+            if (candidates.size() > 1024 * 2)
             {
-                // GCC 10's std::sort(std::execution::par uses a parallel_stable_sort that might
-                // allocate memory
-
                 std::sort(std::execution::par_unseq,
-                          candidates.begin(),
-                          candidates.end(),
-                          lexless_pattern{});
-                // tbb::parallel_sort(candidates.begin(), candidates.end(), lexless_pattern{});
+                           candidates.begin(),
+                           candidates.end(),
+                           lexless_pattern{});
 
                 auto ptr = std::unique(std::execution::par_unseq,
-                                       candidates.begin(),
-                                       candidates.end(),
-                                       equals_pattern{});
+                                        candidates.begin(),
+                                        candidates.end(),
+                                        equals_pattern{});
                 candidates.erase(ptr, candidates.end());
                 return;
             }
@@ -286,13 +277,12 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 4)
+            if (candidates.size() > 1024 * 2)
             {
-                // tbb::parallel_sort(candidates.begin(), candidates.end(), ordering{});
                 std::sort(std::execution::par_unseq,
-                          candidates.begin(),
-                          candidates.end(),
-                          ordering{});
+                           candidates.begin(),
+                           candidates.end(),
+                           ordering{});
                 return;
             }
         }
@@ -306,12 +296,12 @@ struct SlimGeneratorImpl
 #if HAS_EXECUTION_POLICIES
         if constexpr (has_execution_policies)
         {
-            if (candidates.size() > 1024 * 4)
+            if (candidates.size() > 1024 * 2)
             {
                 auto ptr = std::remove_if(std::execution::par_unseq,
-                                          candidates.begin(),
-                                          candidates.end(),
-                                          std::forward<Fn>(fn));
+                                           candidates.begin(),
+                                           candidates.end(),
+                                           std::forward<Fn>(fn));
                 candidates.erase(ptr, candidates.end());
                 return;
             }
@@ -328,9 +318,9 @@ struct SlimGeneratorImpl
         if constexpr (has_execution_policies)
         {
             std::for_each(std::execution::par_unseq,
-                          std::begin(candidates),
-                          std::end(candidates),
-                          [&](auto& x) { x.score = score(x); });
+                           std::begin(candidates),
+                           std::end(candidates),
+                           [&](auto& x) { x.score = score(x); });
         }
         else
 #endif
@@ -351,12 +341,12 @@ struct SlimGeneratorImpl
         if constexpr (has_execution_policies)
         {
             std::for_each(std::execution::par_unseq,
-                          std::begin(candidates),
-                          std::end(candidates),
-                          [&](auto& x) {
-                              if (intersects(joined.pattern, x.pattern))
-                                  x.score = score(x);
-                          });
+                           std::begin(candidates),
+                           std::end(candidates),
+                           [&](auto& x) {
+                               if (intersects(joined.pattern, x.pattern))
+                                   x.score = score(x);
+                           });
         }
         else
 #endif
@@ -385,14 +375,11 @@ struct SlimGeneratorImpl
         if (!has_next())
             return;
 
-        auto best_score = candidates.back().score;
-        auto best_point = candidates.back().pattern;
-
         for (size_t layer = 0; layer < max_layer_expansion; ++layer)
         {
-            auto top = candidates.back(); // copy is intentional
+            auto curr = candidates.back(); // copy is intentional
 
-            combine_pairs(top, true, score);
+            combine_pairs(curr, true, score);
             this->prune(prune_pred);
 
             if (!has_next())
@@ -400,13 +387,10 @@ struct SlimGeneratorImpl
 
             order_candidates();
 
-            if (best_score == candidates.back().score &&
-                sd::equal(best_point, candidates.back().pattern))
+            if (curr.score >= top().score || sd::equal(curr.pattern, top().pattern))
             {
                 break;
             }
-
-            best_point = candidates.back().pattern;
         }
     }
 
@@ -425,6 +409,11 @@ struct SlimGeneratorImpl
         else
         {
             prune(std::forward<prune_fn>(prune_pred));
+        }
+
+        if (has_next() && equal(next.pattern, top().pattern))
+        {
+            candidates.clear(); // done
         }
     }
 

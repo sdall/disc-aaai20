@@ -156,7 +156,7 @@ struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
 
     PartitionedData_Copy() = default;
 
-    explicit PartitionedData_Copy(Dataset<S>&& rhs)
+    PartitionedData_Copy(Dataset<S>&& rhs)
     {
         this->reserve(rhs.size());
         dim = rhs.dim;
@@ -167,7 +167,7 @@ struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
         group_by_label();
     }
 
-    explicit PartitionedData_Copy(Dataset<S>&& rhs, const std::vector<size_t>& labels)
+    PartitionedData_Copy(Dataset<S>&& rhs, const std::vector<size_t>& labels)
     {
         this->reserve(rhs.size());
         dim = rhs.dim;
@@ -390,7 +390,6 @@ public:
     size_t dim                   = 0;
     size_t num_components_backup = 0;
 };
-
 template <typename S>
 void simplify_labels(PartitionedData<S>& data)
 {
