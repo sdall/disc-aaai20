@@ -213,10 +213,10 @@ struct SlimGeneratorImpl
     {
         const size_t count_next = count(next.pattern);
 
-        candidates.reserve(candidates.size() + singletons.size() * 0.2);
-        state_type joined;
-
-#pragma omp parallel for firstprivate(joined)
+        candidates.reserve(candidates.size() + singletons.size() * 0.33);
+        thread_local state_type joined;
+// private(joined)
+#pragma omp parallel for
         for (size_t i = 0; i < singletons.size(); ++i)
         {
             if (intersects(singleton_blacklist[i], next.pattern))
@@ -241,7 +241,7 @@ struct SlimGeneratorImpl
 
         if (make_unique)
         {
-            remove_duplicates();
+            // remove_duplicates();
         }
     }
 
@@ -249,22 +249,19 @@ struct SlimGeneratorImpl
     {
 
 #if HAS_EXECUTION_POLICIES
-        if constexpr (has_execution_policies)
+        if (candidates.size() > 1024 * 2)
         {
-            if (candidates.size() > 1024 * 2)
-            {
-                std::sort(std::execution::par_unseq,
-                           candidates.begin(),
-                           candidates.end(),
-                           lexless_pattern{});
+            std::sort(std::execution::par_unseq,
+                      candidates.begin(),
+                      candidates.end(),
+                      lexless_pattern{});
 
-                auto ptr = std::unique(std::execution::par_unseq,
-                                        candidates.begin(),
-                                        candidates.end(),
-                                        equals_pattern{});
-                candidates.erase(ptr, candidates.end());
-                return;
-            }
+            auto ptr = std::unique(std::execution::par_unseq,
+                                   candidates.begin(),
+                                   candidates.end(),
+                                   equals_pattern{});
+            candidates.erase(ptr, candidates.end());
+            return;
         }
 #endif
         std::sort(candidates.begin(), candidates.end(), lexless_pattern{});
@@ -275,16 +272,11 @@ struct SlimGeneratorImpl
     void order_candidates()
     {
 #if HAS_EXECUTION_POLICIES
-        if constexpr (has_execution_policies)
+        if (candidates.size() > 1024 * 2)
         {
-            if (candidates.size() > 1024 * 2)
-            {
-                std::sort(std::execution::par_unseq,
-                           candidates.begin(),
-                           candidates.end(),
-                           ordering{});
-                return;
-            }
+            std::sort(
+                std::execution::par_unseq, candidates.begin(), candidates.end(), ordering{});
+            return;
         }
 #endif
         std::sort(candidates.begin(), candidates.end(), ordering{});
@@ -294,17 +286,14 @@ struct SlimGeneratorImpl
     void prune(Fn&& fn)
     {
 #if HAS_EXECUTION_POLICIES
-        if constexpr (has_execution_policies)
+        if (candidates.size() > 1024 * 2)
         {
-            if (candidates.size() > 1024 * 2)
-            {
-                auto ptr = std::remove_if(std::execution::par_unseq,
-                                           candidates.begin(),
-                                           candidates.end(),
-                                           std::forward<Fn>(fn));
-                candidates.erase(ptr, candidates.end());
-                return;
-            }
+            auto ptr = std::remove_if(std::execution::par_unseq,
+                                      candidates.begin(),
+                                      candidates.end(),
+                                      std::forward<Fn>(fn));
+            candidates.erase(ptr, candidates.end());
+            return;
         }
 #endif
         auto ptr = std::remove_if(candidates.begin(), candidates.end(), std::forward<Fn>(fn));
@@ -315,49 +304,39 @@ struct SlimGeneratorImpl
     void compute_scores(score_fn&& score)
     {
 #if HAS_EXECUTION_POLICIES
-        if constexpr (has_execution_policies)
-        {
-            std::for_each(std::execution::par_unseq,
-                           std::begin(candidates),
-                           std::end(candidates),
-                           [&](auto& x) { x.score = score(x); });
-        }
-        else
-#endif
-        {
+        std::for_each(std::execution::par_unseq,
+                      std::begin(candidates),
+                      std::end(candidates),
+                      [&](auto& x) { x.score = score(x); });
 
+#else
 #pragma omp parallel for
-            for (size_t i = 0; i < candidates.size(); ++i)
-            {
-                candidates[i].score = score(candidates[i]);
-            }
+        for (size_t i = 0; i < candidates.size(); ++i)
+        {
+            candidates[i].score = score(candidates[i]);
         }
+#endif
     }
 
     template <typename score_fn>
     void compute_scores(const state_type& joined, score_fn&& score)
     {
 #if HAS_EXECUTION_POLICIES
-        if constexpr (has_execution_policies)
-        {
-            std::for_each(std::execution::par_unseq,
-                           std::begin(candidates),
-                           std::end(candidates),
-                           [&](auto& x) {
-                               if (intersects(joined.pattern, x.pattern))
-                                   x.score = score(x);
-                           });
-        }
-        else
-#endif
-        {
+        std::for_each(std::execution::par_unseq,
+                      std::begin(candidates),
+                      std::end(candidates),
+                      [&](auto& x) {
+                          if (intersects(joined.pattern, x.pattern))
+                              x.score = score(x);
+                      });
+#else
 #pragma omp parallel for
-            for (size_t i = 0; i < candidates.size(); ++i)
-            {
-                if (intersects(joined.pattern, candidates[i].pattern))
-                    candidates[i].score = score(candidates[i]);
-            }
+        for (size_t i = 0; i < candidates.size(); ++i)
+        {
+            if (intersects(joined.pattern, candidates[i].pattern))
+                candidates[i].score = score(candidates[i]);
         }
+#endif
     }
 
     template <typename score_fn>
