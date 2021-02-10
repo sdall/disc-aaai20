@@ -52,7 +52,7 @@ struct Component
         c.initial_encoding = initial_encoding;
         c.summary          = summary;
         c.models           = {model};
-        c.subset_encodings = {encoding.of_data};
+        // c.subset_encodings = {encoding.of_data};
 
         auto& a = c.assignment.emplace_back();
         for (size_t i = 0; i < summary.size(); ++i)

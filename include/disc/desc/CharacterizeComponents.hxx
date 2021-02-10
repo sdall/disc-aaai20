@@ -1,6 +1,7 @@
 #pragma once
 
 #include <disc/desc/Desc.hxx>
+#include <disc/desc/Desc.hxx>
 #include <disc/desc/Encoding.hxx>
 
 namespace sd
@@ -52,7 +53,7 @@ void characterize_no_mining(Composition<Trait>& c, const Config& cfg, Interface&
 
     c.assignment.assign(c.data.num_components(), {});
     c.models.assign(c.assignment.size(), make_distribution(c, cfg));
-    c.subset_encodings.assign(c.data.num_components(), {});
+    // c.subset_encodings.assign(c.data.num_components(), {});
 
     for (size_t j = 0; j < c.data.num_components(); ++j)
     {
@@ -71,7 +72,7 @@ template <typename Trait, typename Interface = DefaultAssignment>
 void characterize_components(Composition<Trait>& c, const Config& cfg, Interface&& f = {})
 {
     characterize_no_mining(c, cfg, std::forward<Interface>(f));
-    c.encoding = encode(c, cfg);
+    // c.encoding = encode(c, cfg);
 }
 
 template <typename Trait, typename Interface = DefaultAssignment>

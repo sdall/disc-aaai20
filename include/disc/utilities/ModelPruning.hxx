@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <disc/distribution/InferProbabilities.hxx>
 #include <disc/distribution/StaticFactorModel.hxx>
 #include <disc/utilities/FactorPruning.hxx>
@@ -10,6 +11,12 @@ namespace sd::disc
 template <typename Dist>
 void prune_distribution(Dist& pr)
 {
+    // auto& phi = pr.factors;
+    // std::for_each(std::execution::seq_par, phi.begin(), phi.end(), [](auto& p) {
+    //     if (p.factor.itemset.set.size() > 2)
+    //         viva::prune_factor(p, pr.max_factor_size);
+    // });
+
 #pragma omp parallel for if (pr.factors.size() > 16)
     for (size_t i = 0; i < pr.factors.size(); ++i)
     {
@@ -38,7 +45,7 @@ void remove_unused_patterns(disc::Component<Trait>& c, Config const& cfg)
             ++j;
         }
     }
-    c.encoding = disc::encode(c, cfg);
+    // c.encoding = disc::encode(c, cfg);
 }
 
 template <typename Trait>
@@ -107,7 +114,7 @@ void remove_unused_patterns(disc::Composition<Trait>& c, Config const& cfg)
     // characterize_components(c, cfg);
     assign_from_factors(c);
     compute_frequency_matrix(c);
-    c.encoding = disc::encode(c, cfg);
+    // c.encoding = disc::encode(c, cfg);
 }
 
 template <typename Trait>

@@ -150,13 +150,13 @@ struct LabeledDataset : public sd::df::col_store<L, S>
 };
 
 template <typename S>
-struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
+struct PartitionedData_ : public sd::df::col_store<size_t, S, size_t>
 {
     using pattern_type = S;
 
-    PartitionedData_Copy() = default;
+    PartitionedData_() = default;
 
-    PartitionedData_Copy(Dataset<S>&& rhs)
+    PartitionedData_(Dataset<S>&& rhs)
     {
         this->reserve(rhs.size());
         dim = rhs.dim;
@@ -167,7 +167,7 @@ struct PartitionedData_Copy : public sd::df::col_store<size_t, S, size_t>
         group_by_label();
     }
 
-    PartitionedData_Copy(Dataset<S>&& rhs, const std::vector<size_t>& labels)
+    PartitionedData_(Dataset<S>&& rhs, const std::vector<size_t>& labels)
     {
         this->reserve(rhs.size());
         dim = rhs.dim;
@@ -291,9 +291,10 @@ struct PartitionedData : public sd::df::col_store<size_t, itemset_view<S>, size_
 
     PartitionedData(Dataset<S>&& rhs, const std::vector<size_t>& labels)
     {
-        assert(labels.size() == this->size());
-
         data = std::make_shared<Dataset<S>>(std::forward<Dataset<S>>(rhs));
+
+        assert(data->size() == labels.size());
+
         dim  = data->dim;
         this->resize(data->size());
 
@@ -390,6 +391,7 @@ public:
     size_t dim                   = 0;
     size_t num_components_backup = 0;
 };
+
 template <typename S>
 void simplify_labels(PartitionedData<S>& data)
 {

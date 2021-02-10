@@ -83,10 +83,11 @@ struct SlimGeneratorImpl
     {
         bool operator()(const state_type x, const state_type& y) const noexcept
         {
-            return std::lexicographical_compare(x.pattern.container.begin(),
-                                                x.pattern.container.end(),
-                                                y.pattern.container.begin(),
-                                                y.pattern.container.end());
+            return is_subset(x.pattern, y.pattern);
+            // return std::lexicographical_compare(x.pattern.container.begin(),
+            //                                     x.pattern.container.end(),
+            //                                     y.pattern.container.begin(),
+            //                                     y.pattern.container.end());
         }
     };
 

@@ -212,4 +212,56 @@ auto encode_model_mdl(const Component<Trait>& c)
     return encode_model_mdl(c.summary, c.data.size());
 }
 
+template <typename C, typename X>
+auto constant_mdl_cost(const C& c, const X& x)
+{
+    auto [l, length] = mdl::encode_pattern_by_singletons<typename C::float_type>(
+        x, c.data.size(), c.summary.labels());
+    l += mdl::universal_code(length);
+    return l;
+}
+auto additional_cost_mdl(size_t support)
+{
+    return mdl::universal_code(support); // encode-per-component-support
+}
+
+template <typename Trait, typename Candidate, typename Masks>
+auto desc_heuristic_mdl_multi(const Composition<Trait>& c,
+                          const Candidate&          x,
+                          const Masks&              masks,
+                          const Config&             cfg)
+{
+    using float_type = typename Trait::float_type;
+
+    float_type acc = -constant_mdl_cost(c, x.pattern);
+
+    for (size_t i = 0; i < c.data.num_components(); ++i)
+    {
+        auto p = c.models[i].expectation(x.pattern);
+        auto s = size_of_intersection(x.row_ids, masks[i]);
+        auto q = static_cast<float_type>(s) / c.data.subset(i).size();
+        auto h = s == 0 ? 0 : s * std::log2(q / p);
+
+        assert(0 <= p && p <= 1);
+
+        acc += h - additional_cost_mdl(s, c.models[i]);
+    }
+
+    return acc;
+}
+
+template <typename C, typename Distribution, typename Candidate>
+auto desc_heuristic_mdl_1(const C& c, const Distribution& pr, const Candidate& x, const Config& cfg)
+{
+    using float_type = typename C::float_type;
+
+    const auto s = static_cast<float_type>(x.support);
+    const auto q = s / c.data.size();
+    const auto p = pr.expectation(x.pattern);
+
+    assert(0 <= p && p <= 1);
+
+    return s * std::log2(q / p) - constant_mdl_cost(c, x.pattern);
+}
+
 } // namespace sd::disc::mdl

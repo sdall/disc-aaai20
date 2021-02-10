@@ -21,9 +21,9 @@ struct DefaultAssignment
         using std::log2;
         return log2(q / c.models[index].expectation(x)) > 0;
     }
-    
+
     template <typename Trait, typename Pattern>
-    static auto confidence(const Component<Trait>&         c,
+    static auto confidence(const Component<Trait>&           c,
                            const typename Trait::float_type& q,
                            const Pattern&                    x,
                            const Config&)
@@ -57,11 +57,10 @@ template <typename Trait, typename Candidate, typename Interface = DefaultAssign
 bool find_assignment_impl(Composition<Trait>& c,
                           const Candidate&    x,
                           const Config&       cfg,
-                          Interface&&         f = {})
+                          const Interface&    f = {})
 {
     using float_type = typename Trait::float_type;
-
-    if (x.score < 0)
+    if (x.score <= 0)
         return false;
 
     size_t counter = 0;
@@ -72,7 +71,6 @@ bool find_assignment_impl(Composition<Trait>& c,
         if (s > 0 && pr.is_allowed(x.pattern))
         {
             auto q = static_cast<float_type>(s) / c.data.subset(i).size();
-
             if (f.confidence(c, i, q, x.pattern, cfg))
             {
                 pr.insert(q, x.pattern, true);
@@ -114,7 +112,7 @@ template <typename Trait, typename Candidate, typename Interface = DefaultAssign
 bool find_assignment(Composition<Trait>& c,
                      const Candidate&    x,
                      const Config&       cfg,
-                     Interface&&         f = {})
+                     const Interface&    f = {})
 {
     if (c.data.num_components() == 1)
     {
@@ -122,16 +120,19 @@ bool find_assignment(Composition<Trait>& c,
     }
     else
     {
-        return find_assignment_impl(c, x, cfg, std::forward<Interface>(f));
+        return find_assignment_impl(c, x, cfg, f);
     }
 }
 
 template <typename Trait, typename Candidate, typename Interface = DefaultAssignment>
-bool find_assignment(Component<Trait>& c, const Candidate& x, const Config&, Interface&& = {})
+bool find_assignment(Component<Trait>& c,
+                     const Candidate&  x,
+                     const Config&,
+                     const Interface& = {})
 {
     using float_type = typename Trait::float_type;
 
-    if (x.score < 0)
+    if (x.score <= 0)
         return false;
 
     auto q = static_cast<float_type>(x.support) / c.data.size();

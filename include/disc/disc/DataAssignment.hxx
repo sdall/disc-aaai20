@@ -65,7 +65,7 @@ size_t remove_empty_components(Composition<Trait>& c, const IDs& rev)
     auto tombstone = create_tombstones(c, rev);
 
     erase_from_composition(tombstone, c.models);
-    erase_from_composition(tombstone, c.subset_encodings);
+    // erase_from_composition(tombstone, c.subset_encodings);
     erase_from_composition(tombstone, c.assignment);
 
     return count(tombstone);
@@ -137,6 +137,7 @@ void reassign_components_step(Composition<Trait>& c, const DiscConfig& cfg, Inte
     c.data.group_by_label();
     simplify_labels(c.data);
     characterize_components(c, cfg, f);
+    c.encoding = encode(c, cfg);
 }
 
 template <typename Trait, typename CB = EmptyCallback, typename Interface = DefaultAssignment>

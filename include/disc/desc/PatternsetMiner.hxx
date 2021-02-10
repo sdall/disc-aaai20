@@ -43,9 +43,9 @@ void prepare(Composition<Trait>& c, const Config& cfg)
 struct DefaultPatternsetMinerInterface
 {
     template <typename C, typename Candidate, typename Config>
-    static auto heuristic(C& c, Candidate& x, const Config& cfg)
+    static auto heuristic(C& c, Candidate& x, const Config&)
     {
-        return sd::disc::desc_heuristic(c, x, cfg);
+        return sd::disc::desc_heuristic(c, x);
     }
     template <typename C, typename Candidate, typename Config>
     static auto is_allowed(C& c, const Candidate& x, const Config&)
@@ -58,29 +58,26 @@ struct DefaultPatternsetMinerInterface
         return sd::disc::find_assignment(c, x, cfg);
     }
 
-    template <typename C, typename Config>
-    static auto objective(C& c, const Config& cfg)
-    {
-        return sd::disc::encode(c, cfg);
-    }
+    // template <typename C, typename Config>
+    // static auto objective(C& c, const Config& cfg)
+    // {
+    //     return sd::disc::encode(c, cfg);
+    // }
     template <typename C, typename Config>
     static void prepare(C& c, const Config& cfg)
     {
         sd::disc::prepare(c, cfg);
-        // c.encoding         = objective(c, cfg);
-        // c.initial_encoding = c.encoding;
     }
     template <typename C, typename Config>
     static void finish(C&, const Config&)
     {
-        // c.encoding = objective(c, cfg);
     }
 };
 
 template <typename C,
           typename I    = DefaultPatternsetMinerInterface,
           typename Info = EmptyCallback>
-void discover_patterns_generic(C& s, const Config& cfg, I&& fn = {}, Info&& info = {})
+void discover_patterns_generic(C& s, const Config& cfg, I fn = {}, Info&& info = {})
 {
     using patter_type = typename C::pattern_type;
     using float_type  = typename C::float_type;

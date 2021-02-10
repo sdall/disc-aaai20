@@ -64,6 +64,7 @@ bool split_and_characterize(Composition<Trait>& com,
     else
     {
         characterize_components(com, cfg, std::forward<Interface>(f));
+        com.encoding = encode(com, cfg);
         // characterize_split(com, {index, com.data.num_components() - 1}, cfg);
         return true;
     }

@@ -53,19 +53,21 @@ struct Composition
     EncodingLength<float_type>               encoding;
     EncodingLength<float_type>               initial_encoding;
     std::vector<distribution_type>           models;
-    std::vector<float_type>                  subset_encodings;
+    // std::vector<float_type>                  subset_encodings;
     std::vector<tid_container>               masks;
 };
 
 template <typename T>
 bool check_invariant(const Composition<T>& comp)
 {
-    return ( // comp.summary.size() >= comp.data.dim &&
-        comp.frequency.extent(0) == comp.summary.size() &&
-        comp.frequency.extent(1) >= comp.data.num_components() &&
-        comp.assignment.size() == comp.data.num_components() &&
-        comp.models.size() == comp.assignment.size() &&
-        comp.subset_encodings.size() == comp.models.size());
+    return ( 
+           comp.frequency.extent(0) == comp.summary.size() 
+        && comp.frequency.extent(1) >= comp.data.num_components() 
+        && comp.assignment.size() == comp.data.num_components() 
+        && comp.models.size() == comp.assignment.size() 
+        // comp.summary.size() >= comp.data.dim &&
+        // comp.subset_encodings.size() == comp.models.size()
+    );
 }
 
 template <typename S>
@@ -90,6 +92,7 @@ auto construct_component_masks(const Composition<Trait>& c)
     masks.resize(c.data.num_components(), tid_container{c.data.size()});
     for (size_t s = 0, row = 0, n = c.data.num_components(); s < n; ++s)
     {
+        masks[s].clear();
         for ([[maybe_unused]] const auto& x : c.data.subset(s))
         {
             masks[s].insert(row);
