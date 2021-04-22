@@ -14,6 +14,7 @@ We define the problem in terms of a regularized maximum likelihood, in which we 
 1. C++17 compiler, OpenMP
 2. Boost
 3. TBB 2020.2 (Optional)
+4. cmake
 
 **At the moment of this writing, the Parallel STL of g++ (>=10.1.1) requires TBB and is incompatible with [TBB 2021.2](https://software.intel.com/content/www/us/en/develop/articles/intel-oneapi-threading-building-blocks-release-notes.html)** 
 
@@ -21,19 +22,19 @@ We define the problem in terms of a regularized maximum likelihood, in which we 
 On Debian or Ubuntu you can obtain these for example using 
 
 ```sh
-apt install libboost-dev libtbb2 libtbb-dev g++ 
+apt install libboost-dev g++ cmake libtbb2 libtbb-dev
 ```
 
 On Fedora you can obtain these for example using 
 
 ```sh
-dnf install boost-devel tbb-devel g++
+dnf install boost-devel g++ cmake tbb-devel
 ```
 
 On MacOS you can obtain these for example using Homebrew and
 
 ```sh
-brew install tbb boost gcc libomp
+brew install boost gcc libomp cmake tbb 
 ```
 
 For higher precision floating points we can optionally make use of the non-standard 128 bit float type, however, for this we require GNU Quadmath, Boost.Multiprecision and g++.
@@ -97,10 +98,10 @@ sourceCpp("src/bindings/R/RDisc.cpp")
 Similar to the python interface you now have access to desc and disc
 
 ```R
-    data   <- list(c(1, 2, 3), c(2, 3, 4))
-    labels <- list(0, 1)
+data   <- list(c(1, 2, 3), c(2, 3, 4))
+labels <- list(0, 1)
 
-    desc(data)
-    desc(data, labels)
-    disc(data)
+desc(data)
+desc(data, labels)
+disc(data)
 ```
