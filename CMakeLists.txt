@@ -18,56 +18,33 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 ##############################################################################
 # Dependencies
 ##############################################################################
-set(CMAKE_MODULE_PATH "/usr/share/cmake/Modules;${CMAKE_MODULE_PATH}") #WTF cmake?
-# list(APPEND CMAKE_PREFIX_PATH /local/home/sdalleig/local/gcc-10.1.0/include)
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
+
 find_package(OpenMP REQUIRED)
 find_package(Boost REQUIRED) 
-find_package(TBB REQUIRED)
 
-# include (CheckIncludeFileCXX)
-# include (CheckCXXSymbolExists)
-# include (CheckCXXSourceCompiles)
-# check_cxx_source_compiles("
-# #include <execution>
-# #include <algorithm>
-# int main () {
-#     int x[2]{2,1}; std::sort(std::execution::par, x, x); return 0;
-# }
-# " 
-# WITH_EXECUTION_POLICY CMAKE_REQUIRED_LIBRARIES ${TBB_LIBRARIES})
-# set(CMAKE_REQUIRED_LIBRARIES tbb)
-# set(CMAKE_REQUIRED_LINK_OPTIONS tbb)
-# check_cxx_symbol_exists(std::execution::par execution WITH_EXECUTION_POLICY)
-# check_include_file_cxx("execution" WITH_EXECUTION_POLICY)
-# message(STATUS "${WITH_EXECUTION_POLICY}")
-
-# find_file(WITH_EXECUTION_POLICY NAMES "execution" PATHS "${CMAKE_CURRENT_LIST_DIR}" REQUIRED)
-# if(WITH_EXECUTION_POLICY)
-# else()
-#     message(SEND_ERROR "No <execution> header found, try a newer compiler! (e.g. gcc 10.1.0)")
-# endif()
 target_link_libraries(${PROJECT_NAME} INTERFACE 
         Boost::boost
-        tbb
-        OpenMP::OpenMP_CXX 
-        ${TBB_LIBRARIES}
-)
-
-target_compile_definitions(${PROJECT_NAME} INTERFACE "WITH_EXECUTION_POLICIES=1")
+        OpenMP::OpenMP_CXX)
 
 if(WITH_MPFR) 
-    
+
     find_package(MPFR REQUIRED)
-    target_link_libraries(${PROJECT_NAME} INTERFACE ${MPFR_LIBRARIES})
+
+    target_link_libraries(${PROJECT_NAME} INTERFACE Boost::boost ${MPFR_LIBRARIES})
     target_compile_definitions(${PROJECT_NAME} INTERFACE "WITH_MPFR=1")
 
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    
-    # find_library(QUADMATH_LIBRARY NAMES quadmath libquadmath)
-    target_link_libraries(${PROJECT_NAME} INTERFACE quadmath)
+
+    target_link_libraries(${PROJECT_NAME} INTERFACE quadmath Boost::boost)
     target_compile_definitions(${PROJECT_NAME} INTERFACE "WITH_QUADMATH=1")
     target_compile_options(${PROJECT_NAME} INTERFACE "-fext-numeric-literals")
 
+    find_package(TBB)
+    if (TBB_FOUND AND TBB_VERSION STREQUAL "2020.2") 
+        target_compile_definitions(${PROJECT_NAME} INTERFACE "HAS_EXECUTION_POLICIES=1")
+        target_link_libraries(${PROJECT_NAME} INTERFACE TBB::tbb)
+    endif()
 endif()
 
 ##############################################################################
@@ -80,7 +57,6 @@ endif()
 ##############################################################################
 # unittests
 ##############################################################################
-
 if (WITH_UNITTESTS)
     add_subdirectory(unittests)
 endif()

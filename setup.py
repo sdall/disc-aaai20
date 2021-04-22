@@ -1,14 +1,16 @@
-import os, sys, shutil, subprocess
+import os
+import sys
+import shutil
+import subprocess
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-import cmake
 
 DISTNAME = 'disc'
 DESCRIPTION = 'Discover and Describe Diverging Data Partitions'
 AUTHOR = 'Sebastian Dalleiger'
 AUTHOR_EMAIL = 'sdalleig@mpi-inf.mpg.de'
 LICENSE = 'MIT'
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 URL = 'https://github.com/sdalleig/disc-aaai20'
 CLASSIFIERS = ['Intended Audience :: Science/Research',
                'Intended Audience :: Developers',
@@ -26,10 +28,12 @@ CLASSIFIERS = ['Intended Audience :: Science/Research',
 with open('README.md') as readme_file:
     LONG_DESCRIPTION = readme_file.read()
 
+
 class Ext(Extension):
     def __init__(self, name, src=''):
         Extension.__init__(self, name, sources=[])
         self.src = os.path.abspath(src)
+
 
 
 class Build(build_ext):
@@ -46,15 +50,20 @@ class Build(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
-        cmake_args = ['-DPYTHON_EXECUTABLE=' + sys.executable,
-                      "-DCMAKE_BUILD_TYPE=Release",
-                      "-DCMAKE_INSTALL_PREFIX={}".format(t)]
+        # subprocess.check_call(['meson', ext.src, "--prefix", t], cwd=self.build_temp)
+        # subprocess.check_call(['meson', 'compile'], cwd=self.build_temp)
+        # subprocess.check_call(['meson', 'install'], cwd=self.build_temp)
 
-        cmake_bin = cmake.CMAKE_BIN_DIR + os.path.sep + 'cmake'
-
-        subprocess.check_call([cmake_bin, '-H{}'.format(ext.src), '-B{}'.format(self.build_temp)] + cmake_args)
-        subprocess.check_call([cmake_bin, '--build', self.build_temp,'--target', 'install'])
-
+        subprocess.check_call(['cmake',
+                               '-H{}'.format(ext.src),
+                               '-B{}'.format(self.build_temp),
+                               '-DPYTHON_EXECUTABLE={}'.format(sys.executable),
+                               "-DCMAKE_INSTALL_PREFIX={}".format(t),
+                               "-DCMAKE_BUILD_TYPE=Release"])
+        subprocess.check_call(['cmake',
+                               '--build',
+                               self.build_temp,
+                               '--target', 'install'])
         shutil.rmtree(self.build_temp)
 
 setup(
@@ -74,5 +83,5 @@ setup(
     ext_modules=[Ext('disc')],
     cmdclass=dict(build_ext=Build),
     zip_safe=False,
-    install_requires=['cmake', 'pybind11', 'numpy'],
+    install_requires=['pybind11', 'numpy'],
 )

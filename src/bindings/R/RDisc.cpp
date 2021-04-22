@@ -1,8 +1,8 @@
 #include <Rcpp.h>
 
 #include <bindings/common/TraitBuilder.hxx>
-#include <disc/desc/Desc.hxx>
-#include <disc/disc/Disc.hxx>
+#include <desc/Desc.hxx>
+#include <disc/Disc.hxx>
 #include <disc/utilities/ModelPruning.hxx>
 
 // [[Rcpp::plugins(cpp17)]]

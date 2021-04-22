@@ -1,7 +1,7 @@
 #pragma once
 
-#include <disc/desc/Desc.hxx>
-#include <disc/disc/Disc.hxx>
+#include <desc/Desc.hxx>
+#include <disc/Disc.hxx>
 
 namespace sd::disc
 {
